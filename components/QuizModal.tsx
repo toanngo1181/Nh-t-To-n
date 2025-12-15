@@ -1,56 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Question, QuizResult, QuestionType, ActivityType } from '../types';
-import { Clock, CheckCircle, XCircle, AlertTriangle, HelpCircle, X, Check, BookOpen, ArrowLeft, ArrowRight } from 'lucide-react';
-// We need to import AppContext indirectly or just pass the logger via props. 
-// However, since we can't easily modify the imports in App.tsx without circular dependencies if we export Context from App.tsx, 
-// a cleaner way in this setup is to pass `onComplete` which handles logging in the parent, OR assume props are enough.
-// BUT: The user asked to track "attempts". The parent `CourseDetail` handles `onComplete` only when PASSED usually (in the original code).
-// To track ALL attempts (fail or pass), we should ideally hook into the submit action here.
-
-// Let's modify QuizModal to take a logger callback OR we can access the context if we export it.
-// Since exporting AppContext from App.tsx can cause circular deps, let's stick to the pattern where we pass necessary callbacks.
-// Wait, I can actually just add logging logic to `handleFinish` and pass a prop `onLogAttempt`.
-
-// Update: I will update the App.tsx to pass `logActivity` down to CourseDetail, and CourseDetail pass it to QuizModal? 
-// No, that's prop drilling. 
-// A simple way: The QuizModal is inside App.tsx scope (conceptually). 
-// Actually, `App.tsx` imports `QuizModal`. 
-// Let's just modify `CourseDetail` in `App.tsx` (which is already done in previous file) to handle the logging in `handleQuizComplete`. 
-// BUT, `handleQuizComplete` in `App.tsx` currently only runs on PASS? No, let's check. 
-// `QuizModal` calls `onComplete` with result. `CourseDetail` checks `if (result.passed)`.
-// So we need to log INSIDE `CourseDetail` before the check, OR update `QuizModal` to accept a logger.
-
-// To make it cleanest without circular dependency issues with Context:
-// I will modify `QuizModal` to accept a `onAttemptFinished` prop if needed, but `onComplete` is already there.
-// I will modify `App.tsx`'s `CourseDetail` component to log EVERY attempt, not just passed ones.
-
-// WAIT. The prompt asks to change `QuizModal.tsx`? 
-// Actually, using `useContext` is fine if we had a separate Context file. 
-// Since everything is in `App.tsx` or separate files, and `App.tsx` imports `QuizModal`, `QuizModal` cannot import `AppContext` from `App.tsx`.
-// So I will make `QuizModal` accept a `userId` and `courseId` and `logActivity` function? 
-// Better: I will use `window.dispatchEvent` or just pass the logging function as a prop.
-// Let's pass `logAttempt` as a prop to QuizModal.
-
-// Re-reading `App.tsx` change: I didn't update `CourseDetail` to pass `logActivity`.
-// I will update `QuizModal.tsx` to accept `logAttempt` prop.
-
-// ACTUALLY, I can just use the `onComplete` in `App.tsx`. 
-// Let's see `App.tsx`:
-// const handleQuizComplete = (result: QuizResult) => { ... }
-// I can add logging THERE. 
-// But the user prompt explicitly asked to change `QuizModal.tsx` in my thought process? 
-// Actually no, I proposed it. 
-// Let's do this: 
-// 1. In `App.tsx`, update `CourseDetail` to log the activity inside `handleQuizComplete` (regardless of pass/fail).
-// 2. In `QuizModal.tsx`, I don't STRICTLY need changes if `onComplete` is called for both pass and fail.
-// Let's check `QuizModal.tsx`:
-// `handleFinish` calls `onComplete`.
-// `handleSubmit` sets `isSubmitted` to true.
-// The user has to click "Hoàn thành" or "Học lại" to trigger `onComplete`? 
-// `handleFinish` is only called if `score >= PASSING_SCORE`.
-// If failed, `onClose` is called.
-// This is a flaw in the original design if we want to track FAILED attempts.
-// I need to change `QuizModal` to trigger a callback even when failed, or at the moment of submission.
+import { Clock, CheckCircle, XCircle, AlertTriangle, HelpCircle, X, Check, BookOpen, ArrowLeft, ArrowRight, MinusCircle } from 'lucide-react';
 
 interface QuizModalProps {
   isOpen: boolean;
@@ -58,12 +8,12 @@ interface QuizModalProps {
   onComplete: (result: QuizResult) => void;
   courseTitle: string;
   questions: Question[]; 
-  // Add new prop
   onAttempt?: (result: QuizResult) => void;
 }
 
 const PASSING_SCORE = 80; // Percent
 const QUIZ_DURATION = 15 * 60; // 15 minutes in seconds
+const MAX_POINT_PER_QUESTION = 20; // Điểm tối đa cho mỗi câu để khớp với yêu cầu 20 điểm
 
 const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, courseTitle, questions, onAttempt }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -71,17 +21,21 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
   const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [score, setScore] = useState(0);
+  
+  // Lưu điểm chi tiết từng câu để hiển thị kết quả
+  const [questionScores, setQuestionScores] = useState<number[]>([]);
 
   // Initialize/Reset State
   useEffect(() => {
     if (isOpen && questions.length > 0) {
         setAnswers(new Array(questions.length).fill(""));
+        setQuestionScores(new Array(questions.length).fill(0));
         setCurrentQuestionIndex(0);
         setIsSubmitted(false);
         setScore(0);
         setTimeLeft(QUIZ_DURATION);
     }
-  }, [isOpen]); // CHANGED: Only reset when isOpen changes, NOT when questions prop changes reference
+  }, [isOpen]); 
 
   useEffect(() => {
     if (isOpen && !isSubmitted && questions.length > 0) {
@@ -113,39 +67,84 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
       setAnswers(newAnswers);
   }
 
+  // Hàm đánh giá câu tự luận (Heuristic keyword matching)
+  const evaluateEssay = (userAnswer: string, correctAnswer: string): number => {
+      if (!userAnswer || !userAnswer.trim()) return 0;
+      
+      // Chuẩn hóa chuỗi: chữ thường, bỏ dấu câu đặc biệt
+      const normalize = (str: string) => str.toLowerCase().trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"").replace(/\s{2,}/g," ");
+      
+      const u = normalize(userAnswer);
+      const c = normalize(correctAnswer);
+
+      // 1. Chính xác tuyệt đối (Chuỗi giống hệt hoặc chứa nhau trọn vẹn)
+      if (u === c || u.includes(c) || c.includes(u)) return 20;
+
+      // 2. So sánh từ khóa (Tokenize)
+      const uTokens = u.split(" ");
+      const cTokens = c.split(" ");
+      
+      let matchCount = 0;
+      uTokens.forEach(token => {
+          if (cTokens.includes(token)) matchCount++;
+      });
+
+      const overlapRatio = matchCount / cTokens.length;
+
+      // Logic chấm điểm theo yêu cầu
+      if (overlapRatio >= 0.7) return 20; // Khớp >= 70% từ khóa -> Chính xác (20 điểm)
+      if (overlapRatio >= 0.3) return 10; // Khớp >= 30% từ khóa -> Tương đối (10 điểm)
+      
+      return 0; // Không chính xác
+  };
+
   const handleSubmit = () => {
-    let correctCount = 0;
+    let totalPointsEarned = 0;
+    const calculatedScores: number[] = [];
+
     questions.forEach((q, idx) => {
+        let points = 0;
+        const userAns = answers[idx];
+
         if (q.type === QuestionType.MULTIPLE_CHOICE) {
-            if (answers[idx] === q.correctAnswer) correctCount++;
+            // Trắc nghiệm: Đúng 20, Sai 0
+            if (userAns === q.correctAnswer) {
+                points = MAX_POINT_PER_QUESTION;
+            }
         } else {
-            // For Short Answer, simplified check (length > 5)
-            if (answers[idx] && answers[idx].length > 5) correctCount++; 
+            // Tự luận: 0, 10, hoặc 20 điểm
+            points = evaluateEssay(userAns, q.correctAnswer);
         }
+        
+        calculatedScores.push(points);
+        totalPointsEarned += points;
     });
 
-    const calculatedScore = Math.round((correctCount / questions.length) * 100);
-    setScore(calculatedScore);
+    // Tính điểm tổng trên thang 100
+    // Tổng điểm tối đa có thể đạt được = số câu hỏi * 20
+    const maxPossiblePoints = questions.length * MAX_POINT_PER_QUESTION;
+    const finalPercentScore = Math.round((totalPointsEarned / maxPossiblePoints) * 100);
+
+    setQuestionScores(calculatedScores);
+    setScore(finalPercentScore);
     setIsSubmitted(true);
 
-    // NEW: Trigger attempt logger immediately upon submission
     if (onAttempt) {
         onAttempt({
-            score: calculatedScore,
-            passed: calculatedScore >= PASSING_SCORE,
+            score: finalPercentScore,
+            passed: finalPercentScore >= PASSING_SCORE,
             date: new Date().toISOString()
         });
     }
   };
 
   const handleFinish = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Ensure event doesn't bubble inappropriately
+    e.stopPropagation(); 
     onComplete({
       score: score,
       passed: score >= PASSING_SCORE,
       date: new Date().toISOString()
     });
-    // The parent component handles closing/resetting logic via props
   };
 
   const formatTime = (seconds: number) => {
@@ -182,7 +181,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
         <div className={`text-white p-4 flex justify-between items-center relative ${isSubmitted ? (score >= PASSING_SCORE ? 'bg-green-600' : 'bg-red-600') : 'bg-gray-900'}`}>
           <div className="flex-1 pr-12">
              <h3 className="font-heading font-bold text-lg line-clamp-1">{isSubmitted ? 'Kết quả kiểm tra' : `Kiểm tra: ${courseTitle}`}</h3>
-             <p className="text-xs opacity-80">{isSubmitted ? (score >= PASSING_SCORE ? 'ĐẠT YÊU CẦU' : 'CHƯA ĐẠT') : `Số lượng: ${questions.length} câu`}</p>
+             <p className="text-xs opacity-80">{isSubmitted ? (score >= PASSING_SCORE ? 'ĐẠT YÊU CẦU' : 'CHƯA ĐẠT') : `Số lượng: ${questions.length} câu (20 điểm/câu)`}</p>
           </div>
           
           {!isSubmitted && (
@@ -225,7 +224,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
                       </div>
                       <div>
                           <span className="text-xs font-bold text-gray-400 uppercase mb-1 block">
-                              {currentQ.type === QuestionType.MULTIPLE_CHOICE ? 'Trắc nghiệm' : 'Trả lời ngắn'}
+                              {currentQ.type === QuestionType.MULTIPLE_CHOICE ? 'Trắc nghiệm' : 'Trả lời ngắn (Tự luận)'}
                           </span>
                           <h4 className="text-xl font-medium text-gray-800">
                             {currentQ.text}
@@ -263,7 +262,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
                             value={answers[currentQuestionIndex]}
                             onChange={(e) => handleTextAnswer(e.target.value)}
                           />
-                          <p className="text-xs text-gray-500 italic">* Câu trả lời sẽ được hệ thống ghi nhận.</p>
+                          <p className="text-xs text-gray-500 italic">* Hệ thống sẽ chấm điểm dựa trên mức độ khớp từ khóa (Chính xác: 20đ, Tương đối: 10đ, Sai: 0đ).</p>
                       </div>
                   )}
               </div>
@@ -299,18 +298,43 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
               <div className="space-y-6">
                   {questions.map((q, qIdx) => {
                       const userAnswer = answers[qIdx];
-                      const isCorrect = q.type === QuestionType.MULTIPLE_CHOICE 
-                          ? userAnswer === q.correctAnswer 
-                          : (userAnswer && userAnswer.length > 5); // Simple Logic for Text
+                      const earnedPoints = questionScores[qIdx];
+                      
+                      // Trạng thái hiển thị dựa trên điểm số
+                      let statusColor = "";
+                      let statusIcon = null;
+                      let statusText = "";
+
+                      if (earnedPoints === 20) {
+                          statusColor = "green";
+                          statusIcon = <Check size={18} className="text-green-600"/>;
+                          statusText = "Chính xác (+20 điểm)";
+                      } else if (earnedPoints === 10) {
+                          statusColor = "yellow";
+                          statusIcon = <MinusCircle size={18} className="text-yellow-600"/>;
+                          statusText = "Tương đối (+10 điểm)";
+                      } else {
+                          statusColor = "red";
+                          statusIcon = <X size={18} className="text-red-500"/>;
+                          statusText = "Chưa chính xác (0 điểm)";
+                      }
+
+                      const borderClass = earnedPoints === 20 ? 'border-l-green-500' : (earnedPoints === 10 ? 'border-l-yellow-500' : 'border-l-red-500');
+                      const bgBadgeClass = earnedPoints === 20 ? 'bg-green-500' : (earnedPoints === 10 ? 'bg-yellow-500' : 'bg-red-500');
 
                       return (
-                          <div key={qIdx} className={`bg-white p-6 rounded-xl border-l-4 shadow-sm ${isCorrect ? 'border-l-green-500' : 'border-l-red-500'}`}>
-                              <div className="flex gap-3 mb-4">
-                                  <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm ${isCorrect ? 'bg-green-500' : 'bg-red-500'}`}>
-                                      {qIdx + 1}
-                                  </span>
-                                  <div className="flex-1">
-                                      <h4 className="font-medium text-gray-800 text-lg">{q.text}</h4>
+                          <div key={qIdx} className={`bg-white p-6 rounded-xl border-l-4 shadow-sm ${borderClass}`}>
+                              <div className="flex justify-between items-start mb-4">
+                                  <div className="flex gap-3">
+                                    <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-white text-sm ${bgBadgeClass}`}>
+                                        {qIdx + 1}
+                                    </span>
+                                    <div className="flex-1">
+                                        <h4 className="font-medium text-gray-800 text-lg">{q.text}</h4>
+                                    </div>
+                                  </div>
+                                  <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded bg-${statusColor}-50 text-${statusColor}-700 border border-${statusColor}-200 whitespace-nowrap`}>
+                                      {statusIcon} {statusText}
                                   </div>
                               </div>
 
@@ -343,11 +367,11 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
                                   <div className="pl-11 mb-4 space-y-2">
                                       <div className="p-3 bg-gray-50 border border-gray-200 rounded">
                                           <p className="text-xs text-gray-500 mb-1">Câu trả lời của bạn:</p>
-                                          <p className="text-gray-800">{userAnswer || "(Bỏ trống)"}</p>
+                                          <p className="text-gray-800 font-medium">{userAnswer || "(Bỏ trống)"}</p>
                                       </div>
                                       <div className="p-3 bg-green-50 border border-green-200 rounded">
                                           <p className="text-xs text-green-600 mb-1">Đáp án mẫu:</p>
-                                          <p className="text-green-800">{q.correctAnswer}</p>
+                                          <p className="text-green-800 font-medium">{q.correctAnswer}</p>
                                       </div>
                                   </div>
                               )}

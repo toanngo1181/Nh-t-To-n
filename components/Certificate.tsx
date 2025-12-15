@@ -1,24 +1,77 @@
 import React from 'react';
-import { CertificateData } from '../types';
-import { Download, Share2, Home, LogOut, Printer } from 'lucide-react';
+import { CertificateData, CertificateConfig } from '../types';
+import { Share2, LogOut, Printer } from 'lucide-react';
 
 interface CertificateProps {
   data: CertificateData;
+  config: CertificateConfig; // Nhận cấu hình từ AppContext
   onClose: () => void;
   onHome: () => void;
   logoUrl: string; // Dynamic logo URL
 }
 
-const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome, logoUrl }) => {
+const Certificate: React.FC<CertificateProps> = ({ data, config, onClose, onHome, logoUrl }) => {
   
   const handleDownload = () => {
-    // Trigger browser print dialog which allows saving as PDF
+    // Thay đổi tiêu đề trang tạm thời để tên file PDF khi lưu được đẹp
+    const originalTitle = document.title;
+    document.title = `ChungChi_${data.studentName.replace(/\s+/g, '_')}_${data.id}`;
     window.print();
+    document.title = originalTitle;
   };
 
+  const handleShare = async () => {
+    const shareData = {
+        title: 'Chứng chỉ hoàn thành khóa học - VinhTan E-Learning',
+        text: `Tôi đã hoàn thành xuất sắc khóa học "${data.courseName}" trên hệ thống đào tạo VinhTan E-Learning!`,
+        url: window.location.href // Trong thực tế, đây sẽ là link public để verify chứng chỉ
+    };
+
+    try {
+        if (navigator.share) {
+            await navigator.share(shareData);
+        } else {
+            await navigator.clipboard.writeText(`${shareData.text}\nID chứng chỉ: ${data.verificationCode}`);
+            alert("Đã sao chép nội dung chia sẻ vào bộ nhớ tạm!");
+        }
+    } catch (err) {
+        console.error("Error sharing:", err);
+    }
+  };
+
+  // Logic tách tên khóa học và Level
+  const splitCourseName = (fullName: string) => {
+    const levelIndex = fullName.lastIndexOf("(Level");
+    if (levelIndex !== -1) {
+        return {
+            title: fullName.substring(0, levelIndex).trim(),
+            level: fullName.substring(levelIndex).trim()
+        };
+    }
+    return { title: fullName, level: "" };
+  };
+
+  const { title: courseTitle, level: courseLevel } = splitCourseName(data.courseName);
+
+  // Sử dụng cấu hình hoặc fallback về mặc định
+  const issuerName = config.issuerName || "TS. Phạm Văn B";
+  const issuerTitle = config.issuerTitle || "GIÁM ĐỐC ĐÀO TẠO";
+  const signature = config.signatureImage || "https://upload.wikimedia.org/wikipedia/commons/e/e4/Signature_sample.svg";
+  
+  // Style cho background
+  const bgStyle = config.backgroundImage 
+    ? { 
+        backgroundImage: `url(${config.backgroundImage})`, 
+        backgroundSize: 'cover', 
+        backgroundPosition: 'center' 
+      } 
+    : { 
+        backgroundImage: 'radial-gradient(circle, #f8fafc 0%, #e2e8f0 100%)' 
+      };
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md overflow-y-auto print:p-0 print:bg-white print:static">
-      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full flex flex-col print:shadow-none print:w-full">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md overflow-y-auto print:p-0 print:bg-white print:static print:block">
+      <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full flex flex-col print:shadow-none print:w-full print:max-w-none">
         {/* Header - Hidden when printing */}
         <div className="p-4 border-b flex justify-between items-center bg-gray-50 print:hidden">
           <h3 className="font-bold text-gray-700 flex items-center gap-2">
@@ -31,62 +84,85 @@ const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome, logoUr
         <div className="p-8 overflow-auto bg-gray-200 flex justify-center print:p-0 print:bg-white print:overflow-visible">
             {/* Certificate Template */}
             <div 
-                className="bg-white w-[900px] h-[640px] relative border-[10px] border-double border-brand-blue p-10 text-center shadow-lg flex flex-col justify-between print:w-full print:h-[100vh] print:border-none print:shadow-none" 
-                style={{backgroundImage: 'radial-gradient(circle, #f8fafc 0%, #e2e8f0 100%)'}}
+                className="bg-white w-[900px] h-[640px] relative border-[10px] border-double border-brand-blue p-8 text-center shadow-lg flex flex-col justify-between print:w-full print:h-[100vh] print:border-none print:shadow-none print:m-0" 
+                style={bgStyle}
             >
-                {/* Print specific border simulation if needed, or rely on CSS border above */}
-                <div className="absolute inset-2 border border-gray-300 pointer-events-none print:hidden"></div>
+                {/* Print specific border simulation if no background image, otherwise rely on CSS above */}
+                {!config.backgroundImage && (
+                    <div className="absolute inset-4 border border-gray-300 pointer-events-none print:inset-0 print:border-4 print:border-brand-blue"></div>
+                )}
+                
+                {/* Overlay layer to ensure text readability if background is busy */}
+                {config.backgroundImage && (
+                    <div className="absolute inset-0 bg-white/50 pointer-events-none"></div>
+                )}
 
-                <div className="mt-8 z-10">
-                    <img src={logoUrl} alt="VinhTan Group" className="h-24 mx-auto mb-4 object-contain print:h-28" />
-                    <h1 className="text-5xl font-heading font-bold text-brand-blue uppercase tracking-widest mb-2 print:text-black">Giấy Chứng Nhận</h1>
-                    <p className="text-xl text-gray-500 font-serif italic print:text-gray-600">Hoàn thành khóa học trực tuyến</p>
+                {/* Header Section: Logo & Title */}
+                <div className="mt-4 z-10 relative">
+                    <img src={logoUrl} alt="VinhTan Group" className="h-20 mx-auto mb-2 object-contain print:h-24 mix-blend-multiply" />
+                    <h1 className="text-4xl font-heading font-bold text-brand-blue uppercase tracking-widest mb-1 print:text-black drop-shadow-sm">Giấy Chứng Nhận</h1>
+                    <p className="text-lg text-gray-700 font-serif italic print:text-gray-600">Hoàn thành khóa học trực tuyến</p>
                 </div>
 
-                <div className="my-6 z-10">
-                    <p className="text-gray-600 mb-2 text-lg">Chứng nhận này trân trọng trao cho</p>
-                    <h2 className="text-5xl font-bold text-gray-800 font-heading mb-6 py-2 uppercase tracking-wide print:text-black">{data.studentName}</h2>
-                    <p className="text-gray-600 mb-2 text-lg">Vì đã hoàn thành xuất sắc các yêu cầu của khóa học</p>
-                    <h3 className="text-3xl font-bold text-brand-orange mb-4 px-8 leading-tight print:text-black">{data.courseName}</h3>
+                {/* Body Section: Student & Course Info */}
+                <div className="my-2 z-10 flex flex-col justify-center flex-1 relative">
+                    <p className="text-gray-700 mb-1 text-lg">Chứng nhận này trân trọng trao cho</p>
+                    <h2 className="text-4xl font-bold text-gray-900 font-heading mb-4 py-1 uppercase tracking-wide print:text-black scale-110 drop-shadow-sm">{data.studentName}</h2>
+                    <p className="text-gray-700 mb-2 text-lg">Vì đã hoàn thành xuất sắc các yêu cầu của khóa học</p>
+                    
+                    {/* Course Name - Single Line */}
+                    <h3 className="text-3xl font-bold text-brand-orange px-8 leading-tight print:text-black mb-1 uppercase drop-shadow-sm">
+                        {courseTitle}
+                    </h3>
+                    
+                    {/* Level - Next Line */}
+                    {courseLevel && (
+                        <p className="text-2xl font-bold text-gray-700 mt-2">
+                            {courseLevel}
+                        </p>
+                    )}
                 </div>
 
                 {/* Footer Section: Date/QR and Signature */}
-                <div className="flex justify-between items-end mt-4 px-8 z-10 w-full mb-8">
+                <div className="flex justify-between items-end px-12 z-10 w-full mb-8 relative">
                     
-                    {/* Left: Date & QR Code with L-Bracket */}
-                    <div className="text-left relative pl-8 pb-4 pr-4">
-                        {/* L-Shape Bracket Left */}
-                        <div className="absolute left-0 bottom-0 h-24 w-24 border-l-[6px] border-b-[6px] border-brand-orange"></div>
-
-                        <p className="text-gray-500 text-sm font-medium mb-1">Ngày cấp</p>
-                        <p className="font-bold text-2xl text-gray-800 mb-4">{new Date(data.date).toLocaleDateString('vi-VN')}</p>
+                    {/* Left: Date & QR Code */}
+                    <div className="text-left relative pl-4 pb-2 pr-2">
+                        <p className="text-gray-600 text-sm font-medium mb-1">Ngày cấp</p>
+                        <p className="font-bold text-xl text-gray-800 mb-2">{new Date(data.date).toLocaleDateString('vi-VN')}</p>
                         
-                        <div className="w-28 h-28 bg-white p-1 border border-gray-200 shadow-sm print:border-black">
+                        <div className="w-24 h-24 bg-white p-1 border border-gray-200 shadow-sm print:border-black">
                              <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${data.verificationCode}`} alt="QR Code" className="w-full h-full object-contain" />
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-2 font-mono tracking-widest uppercase">ID: {data.verificationCode}</p>
+                        <p className="text-[10px] text-gray-500 mt-1 font-mono tracking-widest uppercase">ID: {data.verificationCode}</p>
                     </div>
 
-                    {/* Right: Signature with L-Bracket */}
-                    <div className="text-center relative pr-8 pb-4 pl-4 min-w-[300px]">
-                        {/* L-Shape Bracket Right */}
-                        <div className="absolute right-0 bottom-0 h-24 w-24 border-r-[6px] border-b-[6px] border-brand-orange"></div>
-
-                        <div className="h-32 flex items-end justify-center mb-2 relative">
-                             {/* Signature Image */}
-                             <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Signature_sample.svg" alt="Signature" className="h-24 opacity-90 relative z-10" />
+                    {/* Right: Signature */}
+                    <div className="text-center relative pr-4 pb-2 pl-4 min-w-[280px]">
+                        <div className="h-28 flex items-end justify-center mb-1 relative">
+                             {/* Signature Image - Overlaying the line */}
+                             {signature && (
+                                <img 
+                                    src={signature} 
+                                    alt="Signature" 
+                                    className="h-24 absolute bottom-0 left-1/2 -translate-x-1/2 z-20 mix-blend-multiply" 
+                                />
+                             )}
                              
-                             {/* Mock Digital Stamp */}
-                             <div className="absolute right-2 top-2 w-28 h-28 border-4 border-red-500 rounded-full opacity-20 flex items-center justify-center rotate-[-15deg] pointer-events-none print:opacity-30">
-                                <div className="text-[10px] text-red-500 font-bold uppercase text-center leading-tight">
-                                    VinhTan Edu<br/>Digital<br/>Signed
+                             {/* Digital Stamp */}
+                             <div className="absolute right-0 top-0 w-24 h-24 border-4 border-red-600 rounded-full opacity-60 flex items-center justify-center rotate-[-15deg] pointer-events-none mix-blend-multiply z-10">
+                                <div className="w-20 h-20 border border-red-600 rounded-full flex items-center justify-center">
+                                    <div className="text-[8px] text-red-600 font-bold uppercase text-center leading-tight">
+                                        VinhTan Edu<br/>Digital<br/>Signed<br/>
+                                        <span className="text-[6px]">{new Date(data.date).toLocaleDateString('vi-VN')}</span>
+                                    </div>
                                 </div>
                              </div>
                         </div>
                         
-                        <div className="w-full h-0.5 bg-gray-400 my-2 print:bg-black"></div>
-                        <p className="font-bold text-gray-900 text-xl">TS. Phạm Văn B</p>
-                        <p className="text-brand-blue font-bold uppercase tracking-wider print:text-black">GIÁM ĐỐC ĐÀO TẠO</p>
+                        <div className="w-full h-0.5 bg-gray-500 my-1 print:bg-black"></div>
+                        <p className="font-bold text-gray-900 text-lg">{issuerName}</p>
+                        <p className="text-brand-blue font-bold text-sm uppercase tracking-wider print:text-black">{issuerTitle}</p>
                     </div>
                 </div>
             </div>
@@ -105,8 +181,8 @@ const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome, logoUr
           
           <div className="flex gap-3 w-full md:w-auto">
             <button 
-                onClick={() => alert("Đã sao chép liên kết!")}
-                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700"
+                onClick={handleShare}
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 text-gray-700 bg-white"
             >
                 <Share2 size={18} /> Chia sẻ
             </button>
@@ -123,6 +199,15 @@ const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome, logoUr
       {/* Print Styles helper */}
       <style>{`
         @media print {
+            @page {
+                size: landscape;
+                margin: 0;
+            }
+            body { 
+                margin: 0; 
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
             body * {
                 visibility: hidden;
             }
@@ -133,8 +218,14 @@ const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome, logoUr
                 position: absolute;
                 left: 0;
                 top: 0;
+                width: 100vw;
+                height: 100vh;
                 padding: 0;
+                margin: 0;
                 background: white;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
             .print\\:hidden {
                 display: none !important;

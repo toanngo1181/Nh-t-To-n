@@ -24,8 +24,8 @@ export const MOCK_USERS: User[] = [
     department: 'Trại Heo Số 5',
     // --- QUAN TRỌNG: Level được quản lý riêng cho từng khóa học ---
     enrollments: [
-        { courseId: 'course_01', level: 2, joinedAt: '2023-10-01' }, // Khóa 1 đang học Level 2
-        { courseId: 'course_02', level: 1, joinedAt: '2023-10-05' }  // Khóa 2 mới bắt đầu Level 1
+        { courseId: 'course_01', level: 1, joinedAt: '2023-10-01' }, // Reset về Level 1 để kiểm tra bài thi
+        { courseId: 'course_02', level: 1, joinedAt: '2023-10-05' }
     ]
   },
   {
@@ -48,7 +48,7 @@ export const LOGO_URL = "/logonew.png"; // Updated to new logo file in public fo
 
 // --- DỮ LIỆU CÂU HỎI THỰC TẾ (CHO KHÓA 1 - FULL 5 LEVEL) ---
 const REAL_QUESTIONS_COURSE_1: Question[] = [
-  // LEVEL 1: CƠ BẢN
+  // LEVEL 1: CƠ BẢN (5 câu)
   {
     id: 101, text: "Mục đích chính của việc tiêm vaccine cho heo là gì?", type: QuestionType.MULTIPLE_CHOICE,
     options: ["Chữa bệnh đang mắc phải", "Kích thích sinh kháng thể phòng bệnh", "Tăng trọng nhanh", "Giảm mùi hôi chuồng trại"],

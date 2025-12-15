@@ -6,7 +6,7 @@ import {
   Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe, School, Eye
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_COURSES, SAMPLE_QUESTIONS } from './constants';
-import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment, ActivityLog, ActivityType } from './types';
+import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment, ActivityLog, ActivityType, CertificateConfig } from './types';
 import CourseCard from './components/CourseCard';
 import QuizModal from './components/QuizModal';
 import Certificate from './components/Certificate';
@@ -40,6 +40,8 @@ export const AppContext = React.createContext<{
   setLanguage: (lang: string) => void;
   activityLogs: ActivityLog[];
   logActivity: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void;
+  certificateConfig: CertificateConfig;
+  setCertificateConfig: (c: CertificateConfig) => void;
 }>({
   user: null,
   setUser: () => {},
@@ -62,7 +64,14 @@ export const AppContext = React.createContext<{
   language: 'vi',
   setLanguage: () => {},
   activityLogs: [],
-  logActivity: () => {}
+  logActivity: () => {},
+  certificateConfig: {
+    backgroundImage: '',
+    issuerName: 'TS. Phạm Văn B',
+    issuerTitle: 'GIÁM ĐỐC ĐÀO TẠO',
+    signatureImage: ''
+  },
+  setCertificateConfig: () => {}
 });
 
 // --- Auth Component ---
@@ -263,56 +272,181 @@ const Header = () => {
   );
 };
 
-// ... SystemSettings, LearnerDashboard, CourseList, LessonView, UserProfile components ...
-// Assuming they are preserved or I will re-output CourseDetail where changes are needed.
+// Helper for image upload in Settings
+const SettingsMediaInput = ({ 
+    label, 
+    value, 
+    onChange, 
+    accept 
+  }: { 
+    label: string, 
+    value: string, 
+    onChange: (val: string) => void,
+    accept: string 
+  }) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          onChange(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+  
+    return (
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
+        <div className="flex items-center gap-4">
+            <div className="relative w-32 h-20 border border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50 overflow-hidden group">
+                {value ? (
+                    <img src={value} className="w-full h-full object-contain" alt="Preview"/>
+                ) : (
+                    <Upload size={20} className="text-gray-400"/>
+                )}
+                <input 
+                    type="file" 
+                    accept={accept}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={handleFileChange}
+                />
+            </div>
+            <div className="flex-1">
+                <input 
+                    type="text"
+                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none text-sm mb-1"
+                    placeholder="Hoặc nhập URL ảnh..."
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">Tải lên file hoặc dán link ảnh.</p>
+            </div>
+        </div>
+      </div>
+    );
+};
 
 const SystemSettings = () => {
-  const { appLogo, setAppLogo, language, setLanguage } = React.useContext(AppContext);
+  const { appLogo, setAppLogo, language, setLanguage, certificateConfig, setCertificateConfig } = React.useContext(AppContext);
   const [localLogo, setLocalLogo] = useState(appLogo);
+  
+  // Local state for certificate config to avoid instant updates before save
+  const [localCertConfig, setLocalCertConfig] = useState(certificateConfig);
+
+  useEffect(() => {
+    setLocalLogo(appLogo);
+    setLocalCertConfig(certificateConfig);
+  }, [appLogo, certificateConfig]);
 
   const handleSave = () => {
       setAppLogo(localLogo);
+      setCertificateConfig(localCertConfig);
       alert("Đã lưu cài đặt hệ thống!");
   };
 
   return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-6 max-w-4xl mx-auto pb-20">
           <h1 className="text-2xl font-bold text-gray-800 mb-6">Cài đặt hệ thống</h1>
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
-              <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Logo Ứng dụng (URL)</label>
-                  <div className="flex gap-4 items-center">
-                      <div className="w-16 h-16 border border-gray-200 rounded p-1 flex items-center justify-center bg-gray-50">
-                          <img src={localLogo} alt="Preview" className="max-w-full max-h-full object-contain"/>
-                      </div>
-                      <input 
-                          type="text" 
-                          className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
-                          value={localLogo}
-                          onChange={(e) => setLocalLogo(e.target.value)}
-                      />
-                  </div>
-              </div>
-              <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ngôn ngữ mặc định</label>
-                  <select 
-                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                  >
-                      <option value="vi">Tiếng Việt</option>
-                      <option value="en">English</option>
-                      <option value="km">Khmer</option>
-                  </select>
-              </div>
-              <div className="pt-4 border-t border-gray-100">
+          
+          <div className="space-y-8">
+            {/* General Settings */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <h3 className="font-bold text-lg text-gray-700 border-b pb-2">Chung</h3>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Logo Ứng dụng</label>
+                    <SettingsMediaInput 
+                        label=""
+                        value={localLogo}
+                        onChange={setLocalLogo}
+                        accept="image/*"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Ngôn ngữ mặc định</label>
+                    <select 
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                        value={language}
+                        onChange={(e) => setLanguage(e.target.value)}
+                    >
+                        <option value="vi">Tiếng Việt</option>
+                        <option value="en">English</option>
+                        <option value="km">Khmer</option>
+                    </select>
+                </div>
+            </div>
+
+            {/* Certificate Settings */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <h3 className="font-bold text-lg text-gray-700 border-b pb-2 flex items-center gap-2">
+                    <Award size={20}/> Cấu hình Giấy chứng nhận
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="md:col-span-2">
+                        <SettingsMediaInput 
+                            label="Hình nền Giấy chứng nhận"
+                            value={localCertConfig.backgroundImage}
+                            onChange={(val) => setLocalCertConfig({...localCertConfig, backgroundImage: val})}
+                            accept="image/*"
+                        />
+                        <p className="text-xs text-gray-500 -mt-3 italic">Để trống để sử dụng nền mặc định.</p>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tên người cấp (Ký tên)</label>
+                        <input 
+                            type="text" 
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                            value={localCertConfig.issuerName}
+                            onChange={(e) => setLocalCertConfig({...localCertConfig, issuerName: e.target.value})}
+                            placeholder="VD: TS. Phạm Văn B"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Chức vụ người cấp</label>
+                        <input 
+                            type="text" 
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                            value={localCertConfig.issuerTitle}
+                            onChange={(e) => setLocalCertConfig({...localCertConfig, issuerTitle: e.target.value})}
+                            placeholder="VD: GIÁM ĐỐC ĐÀO TẠO"
+                        />
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                         <label className="block text-sm font-medium text-gray-700 mb-2">Chữ ký mẫu</label>
+                         <div className="flex gap-4">
+                            <div className="flex-1">
+                                <SettingsMediaInput 
+                                    label=""
+                                    value={localCertConfig.signatureImage}
+                                    onChange={(val) => setLocalCertConfig({...localCertConfig, signatureImage: val})}
+                                    accept="image/*"
+                                />
+                            </div>
+                            <div className="w-32 h-20 border border-gray-200 bg-white rounded flex items-center justify-center relative">
+                                <span className="text-[10px] absolute top-1 left-1 text-gray-400">Xem trước</span>
+                                {localCertConfig.signatureImage ? (
+                                    <img src={localCertConfig.signatureImage} className="max-h-16 max-w-full mix-blend-multiply" alt="Sig" />
+                                ) : (
+                                    <span className="text-xs text-gray-400">Chưa có</span>
+                                )}
+                            </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex justify-end">
                   <button 
                       onClick={handleSave}
-                      className="px-6 py-2 bg-brand-blue text-white rounded hover:bg-blue-700 transition-colors"
+                      className="px-8 py-3 bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg font-bold flex items-center gap-2"
                   >
-                      Lưu thay đổi
+                      <Save size={20}/> Lưu thay đổi
                   </button>
-              </div>
+            </div>
           </div>
       </div>
   );
@@ -521,7 +655,7 @@ const LessonView = () => {
 };
 
 const UserProfile = () => {
-    const { user, certificates, appLogo } = React.useContext(AppContext);
+    const { user, certificates, appLogo, certificateConfig } = React.useContext(AppContext);
     const [showCertModal, setShowCertModal] = useState<CertificateData | null>(null);
 
     if (!user) return null;
@@ -588,6 +722,7 @@ const UserProfile = () => {
                 <div className="fixed inset-0 z-50">
                      <Certificate 
                         data={showCertModal} 
+                        config={certificateConfig}
                         onClose={() => setShowCertModal(null)} 
                         onHome={() => setShowCertModal(null)}
                         logoUrl={appLogo}
@@ -602,7 +737,7 @@ const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo, logActivity } = React.useContext(AppContext);
+  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo, logActivity, certificateConfig } = React.useContext(AppContext);
   const course = allCourses.find(c => c.id === id);
 
   const [showQuiz, setShowQuiz] = useState(false);
@@ -872,7 +1007,13 @@ const CourseDetail = () => {
 
       {certData && (
         <div className={`${showCert ? 'block' : 'hidden'}`}>
-             <Certificate data={certData} onClose={() => setShowCert(false)} onHome={handleHome} logoUrl={appLogo} />
+             <Certificate 
+                data={certData} 
+                config={certificateConfig}
+                onClose={() => setShowCert(false)} 
+                onHome={handleHome} 
+                logoUrl={appLogo} 
+             />
         </div>
       )}
     </div>
@@ -1146,6 +1287,17 @@ const App = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Initialize Certificate Config from localStorage
+  const [certificateConfig, setCertificateConfig] = useState<CertificateConfig>(() => {
+    const saved = localStorage.getItem('app_certificate_config');
+    return saved ? JSON.parse(saved) : {
+      backgroundImage: '',
+      issuerName: 'TS. Phạm Văn B',
+      issuerTitle: 'GIÁM ĐỐC ĐÀO TẠO',
+      signatureImage: ''
+    };
+  });
+
   // Persist logo changes
   useEffect(() => {
     localStorage.setItem('app_logo', appLogo);
@@ -1165,6 +1317,11 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('app_activity_logs', JSON.stringify(activityLogs));
   }, [activityLogs]);
+
+  // Persist certificate config
+  useEffect(() => {
+    localStorage.setItem('app_certificate_config', JSON.stringify(certificateConfig));
+  }, [certificateConfig]);
 
   // Update totalStudents for each course when users change
   useEffect(() => {
@@ -1261,7 +1418,8 @@ const App = () => {
         logout,
         appLogo, setAppLogo,
         language, setLanguage,
-        activityLogs, logActivity
+        activityLogs, logActivity,
+        certificateConfig, setCertificateConfig
     }}>
         <Router>
              {!user ? (

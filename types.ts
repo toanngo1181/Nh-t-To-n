@@ -1,3 +1,4 @@
+
 export enum Role {
   LEARNER = 'LEARNER',
   INSTRUCTOR = 'INSTRUCTOR',
@@ -109,4 +110,11 @@ export interface CertificateData {
   studentName: string;
   date: string;
   verificationCode: string;
+}
+
+export interface CertificateConfig {
+  backgroundImage: string; // URL hoặc Base64
+  issuerName: string;      // Tên người cấp (VD: TS. Phạm Văn B)
+  issuerTitle: string;     // Chức vụ (VD: GIÁM ĐỐC ĐÀO TẠO)
+  signatureImage: string;  // URL hoặc Base64 chữ ký
 }
