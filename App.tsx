@@ -263,6 +263,9 @@ const Header = () => {
   );
 };
 
+// ... SystemSettings, LearnerDashboard, CourseList, LessonView, UserProfile components ...
+// Assuming they are preserved or I will re-output CourseDetail where changes are needed.
+
 const SystemSettings = () => {
   const { appLogo, setAppLogo, language, setLanguage } = React.useContext(AppContext);
   const [localLogo, setLocalLogo] = useState(appLogo);
@@ -641,9 +644,10 @@ const CourseDetail = () => {
   };
 
   // STRICT FILTERING: Questions for THIS course AND THIS level
-  const relevantQuestions = allQuestions.filter(q => 
+  // MEMOIZE THIS to prevent new array reference on every render, which causes QuizModal to reset loops
+  const relevantQuestions = useMemo(() => allQuestions.filter(q => 
       q.courseId === course.id && q.level === currentLevel
-  );
+  ), [allQuestions, course.id, currentLevel]);
 
   const handleQuizAttempt = (result: QuizResult) => {
       // Log EVERY attempt
@@ -874,6 +878,9 @@ const CourseDetail = () => {
     </div>
   );
 };
+
+// ... AdminDashboard, MainApp, App components ...
+// Assuming they are preserved or I will re-output AdminDashboard where changes are needed.
 
 const AdminDashboard = () => {
   const { role, allCourses, setAllCourses, allQuestions, setAllQuestions, users, setUsers, setUser, user, activityLogs } = React.useContext(AppContext);

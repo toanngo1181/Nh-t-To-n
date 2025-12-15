@@ -72,15 +72,16 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [score, setScore] = useState(0);
 
+  // Initialize/Reset State
   useEffect(() => {
-    if (questions.length > 0) {
+    if (isOpen && questions.length > 0) {
         setAnswers(new Array(questions.length).fill(""));
         setCurrentQuestionIndex(0);
         setIsSubmitted(false);
         setScore(0);
         setTimeLeft(QUIZ_DURATION);
     }
-  }, [questions, isOpen]);
+  }, [isOpen]); // CHANGED: Only reset when isOpen changes, NOT when questions prop changes reference
 
   useEffect(() => {
     if (isOpen && !isSubmitted && questions.length > 0) {
