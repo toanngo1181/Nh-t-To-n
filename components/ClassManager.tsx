@@ -18,7 +18,7 @@ import React, { useContext, useState, useMemo } from 'react';
 // *Self-correction*: I will edit `App.tsx` to `export const AppContext`.
 
 import { User, Course, ActivityLog, ActivityType, Role } from '../types';
-import { Search, User as UserIcon, BookOpen, Clock, FileText, CheckCircle, XCircle, AlertTriangle, Eye, ChevronRight, School } from 'lucide-react';
+import { Search, User as UserIcon, BookOpen, Clock, FileText, CheckCircle, XCircle, AlertTriangle, Eye, ChevronRight, School, Download } from 'lucide-react';
 // Mock import since we can't really import from App in this virtual env easily without the file existing perfectly.
 // I will assume the user puts `export const AppContext = ...` in App.tsx.
 // For now, I will use `any` for context to avoid TS errors in this snippet, but logically it works.
@@ -90,6 +90,66 @@ const ClassManager: React.FC<ClassManagerProps> = ({ users, courses, activityLog
       return { totalViews, totalQuizzes, passedQuizzes, avgScore };
   }, [userLogs]);
 
+  // 5. Handle Export to CSV
+  const handleExport = () => {
+      if (!selectedUser || userLogs.length === 0) {
+          alert("Không có dữ liệu để xuất.");
+          return;
+      }
+
+      // Headers
+      const headers = [
+          "Thời gian",
+          "Học viên",
+          "Mã học viên",
+          "Phòng ban",
+          "Khóa học",
+          "Loại hoạt động",
+          "Chi tiết (Bài học/Bài thi)",
+          "Điểm số",
+          "Kết quả"
+      ];
+
+      // Rows
+      const rows = userLogs.map(log => {
+          const courseTitle = courses.find(c => c.id === log.courseId)?.title || "Unknown Course";
+          const typeText = log.type === ActivityType.LESSON_VIEW ? "Xem bài học" : "Làm bài kiểm tra";
+          const score = log.metadata?.score !== undefined ? log.metadata.score : "";
+          const result = log.metadata?.passed !== undefined ? (log.metadata.passed ? "Đậu" : "Trượt") : "";
+          
+          // Escape quotes for CSV
+          const safeName = `"${log.itemName.replace(/"/g, '""')}"`;
+          const safeCourse = `"${courseTitle.replace(/"/g, '""')}"`;
+          const safeStudent = `"${selectedUser.name}"`;
+          const safeDept = `"${selectedUser.department}"`;
+
+          return [
+              `"${new Date(log.timestamp).toLocaleString('vi-VN')}"`,
+              safeStudent,
+              selectedUser.username,
+              safeDept,
+              safeCourse,
+              typeText,
+              safeName,
+              score,
+              result
+          ].join(",");
+      });
+
+      // Combine with BOM for Excel Vietnamese support
+      const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+      
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Baocao_${selectedUser.username}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
   return (
     <div className="p-6 h-[calc(100vh-64px)] flex flex-col">
       <div className="mb-6">
@@ -153,19 +213,29 @@ const ClassManager: React.FC<ClassManagerProps> = ({ users, courses, activityLog
                                 </div>
                             </div>
                          </div>
-                         <div className="flex gap-4">
-                            <div className="text-center px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                         <div className="flex gap-4 items-center">
+                            <div className="text-center px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm hidden lg:block">
                                 <p className="text-xs text-gray-500 uppercase font-bold">Lượt học</p>
                                 <p className="text-xl font-bold text-brand-blue">{stats.totalViews}</p>
                             </div>
-                            <div className="text-center px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                            <div className="text-center px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm hidden lg:block">
                                 <p className="text-xs text-gray-500 uppercase font-bold">Lượt thi</p>
                                 <p className="text-xl font-bold text-brand-orange">{stats.totalQuizzes}</p>
                             </div>
-                            <div className="text-center px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
+                            <div className="text-center px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm hidden lg:block">
                                 <p className="text-xs text-gray-500 uppercase font-bold">Điểm TB</p>
                                 <p className="text-xl font-bold text-green-600">{stats.avgScore}</p>
                             </div>
+                            
+                            {/* EXPORT BUTTON */}
+                            <button 
+                                onClick={handleExport}
+                                className="ml-2 flex flex-col items-center justify-center w-16 h-16 bg-green-50 text-green-700 rounded-lg border border-green-200 hover:bg-green-100 hover:border-green-300 transition-colors"
+                                title="Xuất Excel (CSV)"
+                            >
+                                <Download size={20} className="mb-1"/>
+                                <span className="text-[10px] font-bold">Excel</span>
+                            </button>
                          </div>
                     </div>
 
