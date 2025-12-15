@@ -15,6 +15,27 @@ export enum QuestionType {
   SHORT_ANSWER = 'SHORT_ANSWER'
 }
 
+export enum ActivityType {
+  LESSON_VIEW = 'LESSON_VIEW',
+  QUIZ_ATTEMPT = 'QUIZ_ATTEMPT'
+}
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  courseId: string;
+  itemId: string; // lessonId or quiz level identifier
+  itemName: string; // Lesson title or "Quiz Level X"
+  type: ActivityType;
+  timestamp: string;
+  metadata?: {
+    score?: number; // For quizzes
+    passed?: boolean; // For quizzes
+    duration?: number; // Time spent (seconds) - optional
+    note?: string;
+  };
+}
+
 export interface Enrollment {
   courseId: string;
   level: number; // Level hiện tại của học viên trong khóa học này (1-5)

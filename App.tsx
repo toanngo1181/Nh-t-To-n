@@ -3,20 +3,21 @@ import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useL
 import { 
   BookOpen, LayoutDashboard, User as UserIcon, LogOut, 
   Search, Bell, ChevronRight, Play, FileText, CheckCircle, 
-  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe
+  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe, School, Eye
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_COURSES, SAMPLE_QUESTIONS } from './constants';
-import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment } from './types';
+import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment, ActivityLog, ActivityType } from './types';
 import CourseCard from './components/CourseCard';
 import QuizModal from './components/QuizModal';
 import Certificate from './components/Certificate';
 import CourseEditor from './components/CourseEditor';
 import QuestionBank from './components/QuestionBank';
 import UserManager from './components/UserManager';
+import ClassManager from './components/ClassManager';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // --- Contexts ---
-const AppContext = React.createContext<{
+export const AppContext = React.createContext<{
   user: User | null;
   setUser: (u: User) => void;
   users: User[];
@@ -37,6 +38,8 @@ const AppContext = React.createContext<{
   setAppLogo: (url: string) => void;
   language: string;
   setLanguage: (lang: string) => void;
+  activityLogs: ActivityLog[];
+  logActivity: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void;
 }>({
   user: null,
   setUser: () => {},
@@ -57,7 +60,9 @@ const AppContext = React.createContext<{
   appLogo: '/logonew.png',
   setAppLogo: () => {},
   language: 'vi',
-  setLanguage: () => {}
+  setLanguage: () => {},
+  activityLogs: [],
+  logActivity: () => {}
 });
 
 // --- Auth Component ---
@@ -150,14 +155,16 @@ const Sidebar = () => {
   const adminLinks = [
     { icon: LayoutDashboard, label: 'Dashboard Admin', path: '/admin' },
     { icon: Users, label: 'Quản lý Người dùng', path: '/admin/users' },
+    { icon: School, label: 'Quản lý Lớp học', path: '/admin/classes' }, // New Link
     { icon: BookOpen, label: 'Quản lý Chủ đề', path: '/admin/courses' },
     { icon: HelpCircle, label: 'Ngân hàng câu hỏi', path: '/admin/questions' },
     { icon: Settings, label: 'Cài đặt hệ thống', path: '/admin/settings' },
   ];
 
   const instructorLinks = [
-    { icon: LayoutDashboard, label: 'Dashboard Giảng viên', path: '/admin' }, // Reuse dashboard view
+    { icon: LayoutDashboard, label: 'Dashboard Giảng viên', path: '/admin' }, 
     { icon: Users, label: 'Quản lý Học viên', path: '/admin/users' },
+    { icon: School, label: 'Quản lý Lớp học', path: '/admin/classes' }, // New Link
     { icon: BookOpen, label: 'Quản lý Chủ đề', path: '/admin/courses' },
     { icon: HelpCircle, label: 'Ngân hàng câu hỏi', path: '/admin/questions' },
   ];
@@ -257,369 +264,342 @@ const Header = () => {
 };
 
 const SystemSettings = () => {
-    const { appLogo, setAppLogo, language, setLanguage } = React.useContext(AppContext);
-    const [tempLogo, setTempLogo] = useState(appLogo);
-    const [isSaving, setIsSaving] = useState(false);
+  const { appLogo, setAppLogo, language, setLanguage } = React.useContext(AppContext);
+  const [localLogo, setLocalLogo] = useState(appLogo);
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setTempLogo(reader.result as string);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleSave = () => {
-        setIsSaving(true);
-        // Simulate network delay
-        setTimeout(() => {
-            setAppLogo(tempLogo);
-            alert("Đã cập nhật logo hệ thống thành công!");
-            setIsSaving(false);
-        }, 800);
-    };
-
-    const handleReset = () => {
-        if(confirm("Bạn có chắc muốn đặt lại logo về mặc định?")) {
-            setTempLogo("/logonew.png");
-            setAppLogo("/logonew.png");
-        }
-    }
-
-    const languages = [
-        { code: 'vi', name: 'Tiếng Việt', sub: 'Vietnamese', flag: '🇻🇳' },
-        { code: 'en', name: 'English', sub: 'Tiếng Anh', flag: '🇺🇸' },
-        { code: 'km', name: 'Khmer', sub: 'Tiếng Khmer', flag: '🇰🇭' },
-    ];
-
-    return (
-        <div className="p-6 max-w-4xl mx-auto animate-fade-in space-y-8">
-             <div className="mb-6 border-b pb-4">
-                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <Settings className="text-gray-500" /> Cài đặt hệ thống
-                </h1>
-                <p className="text-gray-600 mt-1">Quản lý giao diện và cấu hình chung của nền tảng E-Learning.</p>
-            </div>
-
-            {/* Language Selection Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <Globe size={18} className="text-gray-500" /> Ngôn ngữ hiển thị
-                    </h3>
-                    <p className="text-sm text-gray-500">Chọn ngôn ngữ chính cho giao diện hệ thống.</p>
-                </div>
-                <div className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {languages.map(lang => (
-                            <button
-                                key={lang.code}
-                                onClick={() => setLanguage(lang.code)}
-                                className={`p-4 border rounded-xl flex items-center gap-3 transition-all relative ${
-                                    language === lang.code 
-                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue' 
-                                    : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
-                                }`}
-                            >
-                                <span className="text-3xl">{lang.flag}</span>
-                                <div className="text-left">
-                                    <p className={`font-bold ${language === lang.code ? 'text-brand-blue' : 'text-gray-800'}`}>{lang.name}</p>
-                                    <p className="text-xs text-gray-500">{lang.sub}</p>
-                                </div>
-                                {language === lang.code && (
-                                    <div className="absolute top-4 right-4 text-brand-blue">
-                                        <CheckCircle size={18} />
-                                    </div>
-                                )}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Logo Settings Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gray-50">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <ImageIcon size={18} className="text-gray-500" /> Cập nhật Logo thương hiệu
-                    </h3>
-                    <p className="text-sm text-gray-500">Logo này sẽ hiển thị trên trang đăng nhập, menu bên trái, thanh header và trên chứng chỉ.</p>
-                </div>
-
-                <div className="p-8">
-                    <div className="flex flex-col md:flex-row gap-8 items-start">
-                        {/* Preview Section */}
-                        <div className="w-full md:w-1/3 flex flex-col items-center">
-                            <p className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wide">Xem trước</p>
-                            <div className="w-full aspect-square bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center p-4 relative group">
-                                <img src={tempLogo} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
-                                {tempLogo !== appLogo && (
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-                                        <p className="text-white text-xs font-bold">Chưa lưu</p>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="mt-4 w-full bg-brand-blue p-4 rounded text-center">
-                                <p className="text-xs text-blue-200 mb-2">Giao diện Sidebar (Dark/Blue)</p>
-                                <img src={tempLogo} alt="Sidebar Preview" className="h-8 mx-auto object-contain brightness-0 invert" />
-                            </div>
-                        </div>
-
-                        {/* Upload Section */}
-                        <div className="flex-1 space-y-6">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Tải ảnh lên (Khuyên dùng PNG trong suốt)</label>
-                                <div className="flex items-center justify-center w-full">
-                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                            <Upload className="w-8 h-8 mb-3 text-gray-400" />
-                                            <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click để tải ảnh</span> hoặc kéo thả vào đây</p>
-                                            <p className="text-xs text-gray-500">PNG, JPG, SVG (Tối đa 2MB)</p>
-                                        </div>
-                                        <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Hoặc dán đường dẫn ảnh (URL)</label>
-                                <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                        <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-                                        <input 
-                                            type="text" 
-                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue/20 outline-none"
-                                            placeholder="https://example.com/logo.png"
-                                            value={tempLogo.startsWith('data:') ? '' : tempLogo}
-                                            onChange={(e) => setTempLogo(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="flex gap-3 pt-4 border-t border-gray-100">
-                                <button 
-                                    onClick={handleSave} 
-                                    disabled={isSaving || tempLogo === appLogo}
-                                    className={`flex items-center gap-2 px-6 py-2 bg-brand-blue text-white rounded-lg font-medium shadow hover:bg-blue-700 transition-colors ${isSaving || tempLogo === appLogo ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <Save size={18} /> {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
-                                </button>
-                                <button 
-                                    onClick={handleReset}
-                                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-                                >
-                                    <RefreshCw size={18} /> Đặt lại mặc định
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-// --- LEARNER PAGES ---
-const LearnerDashboard = () => {
-  const { myCourses, user } = React.useContext(AppContext);
-  const navigate = useNavigate();
-
-  const data = [
-    { name: 'T2', hours: 2 },
-    { name: 'T3', hours: 4 },
-    { name: 'T4', hours: 1 },
-    { name: 'T5', hours: 3 },
-    { name: 'T6', hours: 5 },
-    { name: 'T7', hours: 2 },
-    { name: 'CN', hours: 0 },
-  ];
+  const handleSave = () => {
+      setAppLogo(localLogo);
+      alert("Đã lưu cài đặt hệ thống!");
+  };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-            <h1 className="text-2xl font-heading font-bold text-gray-800 mb-2">Xin chào, {user?.name} 👋</h1>
-            <p className="text-gray-600">Chúc bạn một ngày học tập hiệu quả!</p>
-        </div>
+      <div className="p-6 max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold text-gray-800 mb-6">Cài đặt hệ thống</h1>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Logo Ứng dụng (URL)</label>
+                  <div className="flex gap-4 items-center">
+                      <div className="w-16 h-16 border border-gray-200 rounded p-1 flex items-center justify-center bg-gray-50">
+                          <img src={localLogo} alt="Preview" className="max-w-full max-h-full object-contain"/>
+                      </div>
+                      <input 
+                          type="text" 
+                          className="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                          value={localLogo}
+                          onChange={(e) => setLocalLogo(e.target.value)}
+                      />
+                  </div>
+              </div>
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Ngôn ngữ mặc định</label>
+                  <select 
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value)}
+                  >
+                      <option value="vi">Tiếng Việt</option>
+                      <option value="en">English</option>
+                      <option value="km">Khmer</option>
+                  </select>
+              </div>
+              <div className="pt-4 border-t border-gray-100">
+                  <button 
+                      onClick={handleSave}
+                      className="px-6 py-2 bg-brand-blue text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                      Lưu thay đổi
+                  </button>
+              </div>
+          </div>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Stats */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-           <div className="w-12 h-12 rounded-full bg-blue-100 text-brand-blue flex items-center justify-center">
-             <BookOpen size={24} />
-           </div>
-           <div>
-             <p className="text-2xl font-bold text-gray-800">{myCourses.length}</p>
-             <p className="text-sm text-gray-500">Chủ đề đã đăng ký</p>
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-           <div className="w-12 h-12 rounded-full bg-green-100 text-brand-success flex items-center justify-center">
-             <CheckCircle size={24} />
-           </div>
-           <div>
-             <p className="text-2xl font-bold text-gray-800">0</p>
-             <p className="text-sm text-gray-500">Khóa học hoàn thành</p>
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-           <div className="w-12 h-12 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center">
-             <Video size={24} />
-           </div>
-           <div>
-             <p className="text-2xl font-bold text-gray-800">12.5h</p>
-             <p className="text-sm text-gray-500">Thời gian học tập</p>
-           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-           <div className="flex justify-between items-center mb-4">
-             <h2 className="text-xl font-bold text-gray-800">Chủ đề đang học</h2>
-             <Link to="/courses" className="text-brand-blue text-sm hover:underline">Đăng ký thêm</Link>
-           </div>
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             {myCourses.length > 0 ? (
-               myCourses.map(course => {
-                 // Determine level for this specific course from user enrollments
-                 const enrollment = user?.enrollments.find(e => e.courseId === course.id);
-                 const currentLevel = enrollment ? enrollment.level : 1;
-
-                 return (
-                    <CourseCard 
-                        key={course.id} 
-                        course={course} 
-                        userLevel={currentLevel}
-                        onClick={(id) => navigate(`/course/${id}`)} 
-                    />
-                 )
-               })
-             ) : (
-               <div className="col-span-2 py-8 text-center bg-white rounded-xl border border-dashed border-gray-300">
-                 <p className="text-gray-500 mb-2">Bạn chưa đăng ký chủ đề nào.</p>
-                 <Link to="/courses" className="inline-block px-4 py-2 bg-brand-blue text-white rounded">Đăng ký chủ đề ngay</Link>
-               </div>
-             )}
-           </div>
-        </div>
-
-        <div>
-           <h2 className="text-xl font-bold text-gray-800 mb-4">Hoạt động học tập</h2>
-           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" tick={{fontSize: 12}} axisLine={false} tickLine={false} />
-                  <Tooltip cursor={{fill: 'transparent'}} />
-                  <Bar dataKey="hours" fill="#0056b3" radius={[4, 4, 0, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-           </div>
-        </div>
-      </div>
-    </div>
   );
 };
 
+const LearnerDashboard = () => {
+    const { user, myCourses, completedLessons, certificates } = React.useContext(AppContext);
+    const navigate = useNavigate();
+
+    return (
+        <div className="p-6 max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">Xin chào, {user?.name} 👋</h1>
+                    <p className="text-gray-600">Tiếp tục hành trình học tập của bạn.</p>
+                </div>
+                <div className="flex gap-4">
+                    <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex items-center gap-3">
+                        <div className="bg-green-100 p-2 rounded-full text-green-600"><CheckCircle size={20}/></div>
+                        <div>
+                            <p className="text-xs text-gray-500">Đã hoàn thành</p>
+                            <p className="font-bold text-gray-800">{certificates.length} khóa</p>
+                        </div>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-100 flex items-center gap-3">
+                        <div className="bg-blue-100 p-2 rounded-full text-brand-blue"><BookOpen size={20}/></div>
+                        <div>
+                            <p className="text-xs text-gray-500">Đang học</p>
+                            <p className="font-bold text-gray-800">{myCourses.length} khóa</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Khóa học của tôi</h2>
+            {myCourses.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {myCourses.map(course => {
+                         const enrollment = user?.enrollments.find(e => e.courseId === course.id);
+                         const userLevel = enrollment ? enrollment.level : 1;
+                        return (
+                            <CourseCard 
+                                key={course.id} 
+                                course={course} 
+                                userLevel={userLevel}
+                                onClick={() => navigate(`/course/${course.id}`)} 
+                            />
+                        )
+                    })}
+                </div>
+            ) : (
+                <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-300">
+                    <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-500 mb-4">Bạn chưa đăng ký khóa học nào.</p>
+                    <button 
+                        onClick={() => navigate('/courses')}
+                        className="text-brand-blue font-bold hover:underline"
+                    >
+                        Khám phá khóa học
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const CourseList = () => {
-  const { enrollCourse, myCourses, allCourses, user } = React.useContext(AppContext);
-  const navigate = useNavigate();
+    const { allCourses, myCourses } = React.useContext(AppContext);
+    const navigate = useNavigate();
+    const [search, setSearch] = useState('');
 
-  const handleCourseClick = (courseId: string) => {
-    const course = allCourses.find(c => c.id === courseId);
-    if (course) {
-       const isEnrolled = user?.enrollments.some(e => e.courseId === courseId);
-       
-       if (!isEnrolled) {
-         if(confirm(`Bạn có muốn đăng ký học "${course.title}" không?`)) {
-            enrollCourse(course);
-            navigate(`/course/${courseId}`);
-         }
-       } else {
-         navigate(`/course/${courseId}`);
-       }
-    }
-  };
+    const filtered = allCourses.filter(c => c.title.toLowerCase().includes(search.toLowerCase()));
 
-  const handleQuickRegister = (e: React.MouseEvent, course: Course) => {
-    // Stop propagation to prevent opening the course detail immediately
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Register directly
-    enrollCourse(course);
-    
-    // NOTE: We do NOT navigate away. 
-    // This allows the button to immediately change from "Click to Register" to "Registered" (Green).
-    // The user can then see the visual confirmation.
-    // Since state is updated, it is also added to the Dashboard automatically.
-  };
-
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-heading font-bold text-gray-800">Danh mục 37 Chủ đề</h1>
-        <p className="text-gray-600">Chọn chủ đề bạn muốn học và nhấn Đăng ký.</p>
-      </div>
-
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-4">
-        {['Tất cả', 'Kỹ thuật', 'Vận hành', 'An toàn', 'Quản lý'].map((cat, idx) => (
-          <button 
-            key={idx} 
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-              idx === 0 ? 'bg-brand-blue text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {allCourses.map(course => {
-            const enrollment = user?.enrollments.find(e => e.courseId === course.id);
-            const isEnrolled = !!enrollment;
-            
-            return (
-                <div key={course.id} className="relative group/card cursor-pointer">
-                    <CourseCard 
-                        course={course} 
-                        userLevel={enrollment ? enrollment.level : null}
-                        onClick={handleCourseClick} 
+    return (
+        <div className="p-6 max-w-7xl mx-auto">
+             <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800">Thư viện khóa học</h1>
+                    <p className="text-gray-600">Khám phá và nâng cao kiến thức chăn nuôi.</p>
+                </div>
+                <div className="relative w-full md:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                        type="text" 
+                        placeholder="Tìm khóa học..." 
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
                     />
-                    {!isEnrolled && (
-                        <button 
-                            onClick={(e) => handleQuickRegister(e, course)}
-                            className="absolute top-2 left-2 bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1.5 rounded shadow-sm flex items-center gap-1 hover:bg-yellow-200 transition-colors z-20 cursor-pointer border border-yellow-200"
-                            title="Đăng ký ngay"
-                        >
-                            <PlusCircle size={14}/> Nhấn để đăng ký
-                        </button>
-                    )}
-                    {isEnrolled && (
-                        <div className="absolute top-2 left-2 bg-green-100 text-green-800 text-xs font-bold px-3 py-1.5 rounded shadow-sm z-10 flex items-center gap-1 border border-green-200">
-                            <CheckCircle size={14} /> Đã đăng ký
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filtered.map(course => {
+                    return (
+                        <CourseCard 
+                            key={course.id} 
+                            course={course} 
+                            userLevel={null}
+                            onClick={() => navigate(`/course/${course.id}`)} 
+                        />
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+const LessonView = () => {
+    const { courseId, lessonId } = useParams();
+    const navigate = useNavigate();
+    const { allCourses, completeLesson, completedLessons, logActivity, user } = React.useContext(AppContext);
+    
+    const course = allCourses.find(c => c.id === courseId);
+    // Find lesson in topics
+    let lesson: Lesson | undefined;
+    let topic: Topic | undefined;
+    
+    course?.topics.forEach(t => {
+        const l = t.lessons.find(ls => ls.id === lessonId);
+        if (l) {
+            lesson = l;
+            topic = t;
+        }
+    });
+
+    useEffect(() => {
+        if (lesson && user && courseId) {
+            logActivity({
+                userId: user.id,
+                courseId: courseId,
+                itemId: lesson.id,
+                itemName: lesson.title,
+                type: ActivityType.LESSON_VIEW
+            });
+        }
+    }, [lessonId]); // Log on lesson mount/change
+
+    if (!course || !lesson) return <div>Không tìm thấy bài học</div>;
+
+    const handleComplete = () => {
+        if(courseId && lessonId) {
+            completeLesson(lessonId, courseId);
+            // Navigate back to course or next lesson?
+            // For simplicity, back to course detail to take quiz if ready
+            navigate(`/course/${courseId}`);
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-[calc(100vh-64px)]">
+            <div className="bg-gray-900 text-white p-4 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                    <button onClick={() => navigate(`/course/${courseId}`)} className="hover:bg-white/10 p-2 rounded">
+                        <ArrowRight className="rotate-180" size={20}/>
+                    </button>
+                    <div>
+                        <h2 className="font-bold text-lg">{lesson.title}</h2>
+                        <p className="text-xs text-gray-400">{course.title}</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={handleComplete}
+                    className={`px-4 py-2 rounded font-bold flex items-center gap-2 ${completedLessons.includes(lesson.id) ? 'bg-green-600 text-white' : 'bg-brand-blue text-white'}`}
+                >
+                    {completedLessons.includes(lesson.id) ? <CheckCircle size={18}/> : <CheckCircle size={18}/>}
+                    {completedLessons.includes(lesson.id) ? 'Đã hoàn thành' : 'Hoàn thành bài học'}
+                </button>
+            </div>
+            
+            <div className="flex-1 bg-black flex items-center justify-center relative">
+                {lesson.type === ContentType.VIDEO ? (
+                     lesson.url ? (
+                         <iframe 
+                            src={lesson.url.replace("watch?v=", "embed/")} 
+                            className="w-full h-full" 
+                            allowFullScreen 
+                            title="Video Player"
+                         />
+                     ) : (
+                         <div className="text-center text-gray-500">
+                             <Video size={64} className="mx-auto mb-4 opacity-50"/>
+                             <p>Video đang được cập nhật</p>
+                         </div>
+                     )
+                ) : (
+                    <div className="bg-white w-full h-full overflow-y-auto p-8">
+                        {lesson.url ? (
+                            <iframe src={lesson.url} className="w-full h-full" title="PDF Viewer" />
+                        ) : (
+                            <div className="max-w-3xl mx-auto">
+                                <h1 className="text-3xl font-bold mb-6 text-gray-900">{lesson.title}</h1>
+                                <div className="prose lg:prose-xl text-gray-700">
+                                    <p>Nội dung tài liệu đang được cập nhật...</p>
+                                    <div className="h-64 bg-gray-100 rounded flex items-center justify-center">
+                                        <FileText size={48} className="text-gray-400"/>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const UserProfile = () => {
+    const { user, certificates, appLogo } = React.useContext(AppContext);
+    const [showCertModal, setShowCertModal] = useState<CertificateData | null>(null);
+
+    if (!user) return null;
+
+    return (
+        <div className="p-6 max-w-7xl mx-auto">
+            <h1 className="text-2xl font-bold text-gray-800 mb-6">Hồ sơ cá nhân</h1>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {/* Profile Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <div className="flex flex-col items-center text-center">
+                        <img src={user.avatar} alt={user.name} className="w-24 h-24 rounded-full border-4 border-gray-100 mb-4"/>
+                        <h2 className="text-xl font-bold text-gray-900">{user.name}</h2>
+                        <p className="text-gray-500">{user.department}</p>
+                        <div className="mt-6 w-full space-y-3">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                <span className="text-gray-500 text-sm">Tên đăng nhập</span>
+                                <span className="font-medium">{user.username}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                <span className="text-gray-500 text-sm">Email</span>
+                                <span className="font-medium">{user.email}</span>
+                            </div>
+                             <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                <span className="text-gray-500 text-sm">Vai trò</span>
+                                <span className="font-medium">{user.role}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Certificates */}
+                <div className="md:col-span-2 space-y-6">
+                    <h3 className="font-bold text-lg text-gray-800 border-b pb-2">Chứng chỉ của tôi</h3>
+                    {certificates.length > 0 ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {certificates.map(cert => (
+                                <div key={cert.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <Award size={64} className="text-brand-orange"/>
+                                    </div>
+                                    <h4 className="font-bold text-gray-800 mb-1">{cert.courseName}</h4>
+                                    <p className="text-xs text-gray-500 mb-3">Cấp ngày: {new Date(cert.date).toLocaleDateString('vi-VN')}</p>
+                                    <button 
+                                        onClick={() => setShowCertModal(cert)}
+                                        className="text-xs bg-brand-blue text-white px-3 py-1.5 rounded hover:bg-blue-700 flex items-center gap-1 w-fit"
+                                    >
+                                        <Eye size={12}/> Xem chứng chỉ
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <Award size={32} className="mx-auto text-gray-300 mb-2"/>
+                            <p className="text-gray-500 text-sm">Bạn chưa có chứng chỉ nào.</p>
                         </div>
                     )}
                 </div>
-            );
-        })}
-      </div>
-    </div>
-  );
+            </div>
+
+            {showCertModal && (
+                <div className="fixed inset-0 z-50">
+                     <Certificate 
+                        data={showCertModal} 
+                        onClose={() => setShowCertModal(null)} 
+                        onHome={() => setShowCertModal(null)}
+                        logoUrl={appLogo}
+                    />
+                </div>
+            )}
+        </div>
+    );
 };
 
 const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo } = React.useContext(AppContext);
+  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo, logActivity } = React.useContext(AppContext);
   const course = allCourses.find(c => c.id === id);
 
   const [showQuiz, setShowQuiz] = useState(false);
@@ -665,6 +645,23 @@ const CourseDetail = () => {
       q.courseId === course.id && q.level === currentLevel
   );
 
+  const handleQuizAttempt = (result: QuizResult) => {
+      // Log EVERY attempt
+      if (user) {
+          logActivity({
+              userId: user.id,
+              courseId: course.id,
+              itemId: `quiz-level-${currentLevel}`,
+              itemName: `Bài kiểm tra Level ${currentLevel}`,
+              type: ActivityType.QUIZ_ATTEMPT,
+              metadata: {
+                  score: result.score,
+                  passed: result.passed
+              }
+          });
+      }
+  };
+
   const handleQuizComplete = (result: QuizResult) => {
     if (result.passed) {
       // Generate Certificate
@@ -708,7 +705,6 @@ const CourseDetail = () => {
 
   const handleHome = () => {
     setShowCert(false);
-    // Stay on page to see new level unlocked
   };
 
   return (
@@ -867,6 +863,7 @@ const CourseDetail = () => {
         courseTitle={`${course.title} (Level ${currentLevel})`}
         questions={relevantQuestions}
         onComplete={handleQuizComplete}
+        onAttempt={handleQuizAttempt}
       />
 
       {certData && (
@@ -878,197 +875,8 @@ const CourseDetail = () => {
   );
 };
 
-// --- ADDITIONAL COMPONENTS ---
-
-const LessonView = () => {
-    const { courseId, lessonId } = useParams();
-    const navigate = useNavigate();
-    const { allCourses, completeLesson, completedLessons, user } = React.useContext(AppContext);
-    
-    const course = allCourses.find(c => c.id === courseId);
-    const lesson = course?.topics.flatMap(t => t.lessons).find(l => l.id === lessonId);
-    
-    // Authorization Check
-    const enrollment = user?.enrollments.find(e => e.courseId === courseId);
-    const userLevel = enrollment ? enrollment.level : 1;
-    const isLocked = lesson && lesson.level > userLevel && user?.role !== Role.ADMIN && user?.role !== Role.INSTRUCTOR;
-
-    if (!course || !lesson) return <div>Không tìm thấy bài học</div>;
-    
-    if (isLocked) {
-        return (
-            <div className="h-screen flex flex-col items-center justify-center bg-gray-100 p-6 text-center">
-                <Lock size={64} className="text-gray-400 mb-4"/>
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">Bài học bị khóa</h1>
-                <p className="text-gray-600 mb-6">Bạn cần hoàn thành Level {lesson.level - 1} và làm bài kiểm tra để mở khóa bài học này.</p>
-                <button onClick={() => navigate(`/course/${courseId}`)} className="px-6 py-2 bg-brand-blue text-white rounded-lg">Quay về khóa học</button>
-            </div>
-        )
-    }
-
-    const handleComplete = () => {
-        if (courseId && lessonId) {
-            completeLesson(lessonId, courseId);
-            
-            // --- NEW: Check if this was the last lesson of the level ---
-            const currentLevelLessons = course.topics.flatMap(t => t.lessons).filter(l => l.level === lesson.level);
-            const isLevelDone = currentLevelLessons.every(l => completedLessons.includes(l.id) || l.id === lessonId);
-
-            if (isLevelDone) {
-                // If level is done, navigate back to course detail so user can see the unlocked Test Button
-                // We use state to tell CourseDetail to maybe scroll or highlight the test button
-                if(confirm(`Bạn đã học xong hết bài học Level ${lesson.level}. Quay về màn hình chính để làm bài kiểm tra?`)) {
-                    navigate(`/course/${courseId}`); // Simply go back, let them click the big orange button
-                    return;
-                }
-            }
-
-            // Standard navigation logic (Find next lesson)
-            const allLessons = course.topics.flatMap(t => t.lessons);
-            const idx = allLessons.findIndex(l => l.id === lessonId);
-            if (idx < allLessons.length - 1) {
-                const nextLesson = allLessons[idx+1];
-                // Only auto-advance if next lesson is same level. If next lesson is higher level, we stop to force test.
-                if (nextLesson.level === lesson.level) {
-                     navigate(`/learn/${courseId}/${nextLesson.id}`);
-                } else {
-                     alert("Bạn đã hoàn thành các bài học của Level này. Hãy làm bài kiểm tra để mở khóa Level tiếp theo.");
-                     navigate(`/course/${courseId}`);
-                }
-            } else {
-                navigate(`/course/${courseId}`);
-            }
-        }
-    }
-
-    return (
-        <div className="flex flex-col h-[calc(100vh-64px)]">
-            <div className="bg-gray-900 text-white p-4 flex justify-between items-center">
-                 <div className="flex items-center gap-4">
-                     <button onClick={() => navigate(`/course/${courseId}`)} className="text-gray-400 hover:text-white"><ChevronRight className="rotate-180" size={24}/></button>
-                     <div>
-                         <h2 className="font-bold">{course.title}</h2>
-                         <p className="text-xs text-gray-400">{lesson.title}</p>
-                     </div>
-                 </div>
-            </div>
-            <div className="flex-1 flex bg-gray-100 overflow-hidden">
-                <div className="flex-1 p-6 overflow-y-auto flex flex-col items-center">
-                    <div className="w-full max-w-4xl bg-black rounded-xl overflow-hidden shadow-2xl aspect-video mb-6 relative">
-                         {lesson.type === ContentType.VIDEO ? (
-                             <iframe 
-                                src={lesson.url ? lesson.url.replace("watch?v=", "embed/") : "https://www.youtube.com/embed/dQw4w9WgXcQ"} 
-                                className="w-full h-full" 
-                                title="Video Player"
-                                allowFullScreen
-                             ></iframe>
-                         ) : (
-                             <div className="w-full h-full bg-white flex flex-col items-center justify-center text-gray-500">
-                                 <FileText size={64} className="mb-4 text-brand-blue" />
-                                 <h3 className="text-xl font-bold text-gray-800 mb-2">Tài liệu PDF</h3>
-                                 <p>Bạn đang xem tài liệu: {lesson.title}</p>
-                                 <a href={lesson.url || "#"} target="_blank" rel="noreferrer" className="mt-4 px-4 py-2 bg-brand-blue text-white rounded hover:bg-blue-700">Tải xuống / Mở tab mới</a>
-                             </div>
-                         )}
-                    </div>
-                    <div className="w-full max-w-4xl flex justify-between items-center">
-                         <h1 className="text-2xl font-bold text-gray-800">{lesson.title}</h1>
-                         <button 
-                            onClick={handleComplete}
-                            className={`px-6 py-3 rounded-lg font-bold shadow-lg flex items-center gap-2 ${completedLessons.includes(lesson.id) ? 'bg-green-100 text-green-700' : 'bg-brand-blue text-white hover:bg-blue-700'}`}
-                         >
-                            {completedLessons.includes(lesson.id) ? <><CheckCircle size={20}/> Đã hoàn thành</> : 'Hoàn thành bài học'}
-                         </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
-
-const UserProfile = () => {
-    const { user, completedLessons, certificates, allCourses } = React.useContext(AppContext);
-
-    return (
-        <div className="p-6 max-w-4xl mx-auto">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-                <div className="h-32 bg-gradient-to-r from-brand-blue to-purple-600"></div>
-                <div className="px-8 pb-8">
-                    <div className="relative -mt-16 mb-4">
-                        <img src={user?.avatar} className="w-32 h-32 rounded-full border-4 border-white shadow-md bg-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-800">{user?.name}</h1>
-                        <p className="text-gray-600">{user?.department}</p>
-                        <div className="flex gap-4 mt-4">
-                             <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                                 <UserIcon size={14}/> {user?.username}
-                             </div>
-                             <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-                                 <Shield size={14}/> {user?.role}
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                     <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><CheckCircle className="text-green-500" size={20}/> Tiến độ học tập</h3>
-                     <div className="text-center py-6">
-                         <div className="text-4xl font-bold text-brand-blue mb-1">{completedLessons.length}</div>
-                         <p className="text-gray-500 text-sm">Bài học đã hoàn thành</p>
-                     </div>
-                 </div>
-
-                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                     <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Award className="text-brand-orange" size={20}/> Chứng chỉ đã nhận</h3>
-                     {certificates.length > 0 ? (
-                         <div className="space-y-3">
-                             {certificates.map(c => (
-                                 <div key={c.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                     <div>
-                                         <p className="font-medium text-sm text-gray-800">{c.courseName}</p>
-                                         <p className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString('vi-VN')}</p>
-                                     </div>
-                                     <Award size={20} className="text-brand-orange" />
-                                 </div>
-                             ))}
-                         </div>
-                     ) : (
-                         <div className="text-center py-6 text-gray-400">
-                             Chưa có chứng chỉ nào.
-                         </div>
-                     )}
-                 </div>
-            </div>
-            
-            {/* Show Enrolled Courses */}
-            <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                 <h3 className="font-bold text-gray-800 mb-4">Các khóa học đã tham gia</h3>
-                 <div className="space-y-4">
-                     {user?.enrollments.map(e => {
-                         const course = allCourses.find(c => c.id === e.courseId);
-                         return (
-                             <div key={e.courseId} className="flex justify-between items-center border-b border-gray-100 pb-3 last:border-0">
-                                <div>
-                                    <span className="font-medium text-gray-800">{course ? course.title : `Khóa học ID: ${e.courseId}`}</span>
-                                    <p className="text-xs text-gray-500">Tham gia ngày: {e.joinedAt}</p>
-                                </div>
-                                <span className="bg-blue-100 text-brand-blue px-3 py-1 rounded-full text-xs font-bold">
-                                    Đang ở Level {e.level}
-                                </span>
-                             </div>
-                         );
-                     })}
-                 </div>
-            </div>
-        </div>
-    )
-}
-
 const AdminDashboard = () => {
-  const { role, allCourses, setAllCourses, allQuestions, setAllQuestions, users, setUsers, setUser, user } = React.useContext(AppContext);
+  const { role, allCourses, setAllCourses, allQuestions, setAllQuestions, users, setUsers, setUser, user, activityLogs } = React.useContext(AppContext);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -1103,6 +911,10 @@ const AdminDashboard = () => {
             onDeleteUser={(id) => setUsers(users.filter(u => u.id !== id))}
           />
       );
+  }
+
+  if (location.pathname === '/admin/classes') {
+      return <ClassManager users={users} courses={allCourses} activityLogs={activityLogs} />;
   }
 
   if (location.pathname === '/admin/questions') {
@@ -1321,6 +1133,12 @@ const App = () => {
     return localStorage.getItem('app_language') || 'vi';
   });
 
+  // Initialize Activity Logs from localStorage
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
+    const saved = localStorage.getItem('app_activity_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Persist logo changes
   useEffect(() => {
     localStorage.setItem('app_logo', appLogo);
@@ -1335,6 +1153,11 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('app_users', JSON.stringify(users));
   }, [users]);
+
+  // Persist activity logs
+  useEffect(() => {
+    localStorage.setItem('app_activity_logs', JSON.stringify(activityLogs));
+  }, [activityLogs]);
 
   // Update totalStudents for each course when users change
   useEffect(() => {
@@ -1403,6 +1226,15 @@ const App = () => {
       setCertificates([...certificates, cert]);
   };
 
+  const logActivity = (logData: Omit<ActivityLog, 'id' | 'timestamp'>) => {
+      const newLog: ActivityLog = {
+          ...logData,
+          id: `act-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date().toISOString()
+      };
+      setActivityLogs(prevLogs => [newLog, ...prevLogs]); // Newest first
+  };
+
   const myCourses = React.useMemo(() => {
       if(!user) return [];
       return allCourses.filter(c => user.enrollments.some(e => e.courseId === c.id));
@@ -1421,7 +1253,8 @@ const App = () => {
         certificates, addCertificate,
         logout,
         appLogo, setAppLogo,
-        language, setLanguage
+        language, setLanguage,
+        activityLogs, logActivity
     }}>
         <Router>
              {!user ? (

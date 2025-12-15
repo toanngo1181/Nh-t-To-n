@@ -1,6 +1,56 @@
-import React, { useState, useEffect } from 'react';
-import { Question, QuizResult, QuestionType } from '../types';
+import React, { useState, useEffect, useContext } from 'react';
+import { Question, QuizResult, QuestionType, ActivityType } from '../types';
 import { Clock, CheckCircle, XCircle, AlertTriangle, HelpCircle, X, Check, BookOpen, ArrowLeft, ArrowRight } from 'lucide-react';
+// We need to import AppContext indirectly or just pass the logger via props. 
+// However, since we can't easily modify the imports in App.tsx without circular dependencies if we export Context from App.tsx, 
+// a cleaner way in this setup is to pass `onComplete` which handles logging in the parent, OR assume props are enough.
+// BUT: The user asked to track "attempts". The parent `CourseDetail` handles `onComplete` only when PASSED usually (in the original code).
+// To track ALL attempts (fail or pass), we should ideally hook into the submit action here.
+
+// Let's modify QuizModal to take a logger callback OR we can access the context if we export it.
+// Since exporting AppContext from App.tsx can cause circular deps, let's stick to the pattern where we pass necessary callbacks.
+// Wait, I can actually just add logging logic to `handleFinish` and pass a prop `onLogAttempt`.
+
+// Update: I will update the App.tsx to pass `logActivity` down to CourseDetail, and CourseDetail pass it to QuizModal? 
+// No, that's prop drilling. 
+// A simple way: The QuizModal is inside App.tsx scope (conceptually). 
+// Actually, `App.tsx` imports `QuizModal`. 
+// Let's just modify `CourseDetail` in `App.tsx` (which is already done in previous file) to handle the logging in `handleQuizComplete`. 
+// BUT, `handleQuizComplete` in `App.tsx` currently only runs on PASS? No, let's check. 
+// `QuizModal` calls `onComplete` with result. `CourseDetail` checks `if (result.passed)`.
+// So we need to log INSIDE `CourseDetail` before the check, OR update `QuizModal` to accept a logger.
+
+// To make it cleanest without circular dependency issues with Context:
+// I will modify `QuizModal` to accept a `onAttemptFinished` prop if needed, but `onComplete` is already there.
+// I will modify `App.tsx`'s `CourseDetail` component to log EVERY attempt, not just passed ones.
+
+// WAIT. The prompt asks to change `QuizModal.tsx`? 
+// Actually, using `useContext` is fine if we had a separate Context file. 
+// Since everything is in `App.tsx` or separate files, and `App.tsx` imports `QuizModal`, `QuizModal` cannot import `AppContext` from `App.tsx`.
+// So I will make `QuizModal` accept a `userId` and `courseId` and `logActivity` function? 
+// Better: I will use `window.dispatchEvent` or just pass the logging function as a prop.
+// Let's pass `logAttempt` as a prop to QuizModal.
+
+// Re-reading `App.tsx` change: I didn't update `CourseDetail` to pass `logActivity`.
+// I will update `QuizModal.tsx` to accept `logAttempt` prop.
+
+// ACTUALLY, I can just use the `onComplete` in `App.tsx`. 
+// Let's see `App.tsx`:
+// const handleQuizComplete = (result: QuizResult) => { ... }
+// I can add logging THERE. 
+// But the user prompt explicitly asked to change `QuizModal.tsx` in my thought process? 
+// Actually no, I proposed it. 
+// Let's do this: 
+// 1. In `App.tsx`, update `CourseDetail` to log the activity inside `handleQuizComplete` (regardless of pass/fail).
+// 2. In `QuizModal.tsx`, I don't STRICTLY need changes if `onComplete` is called for both pass and fail.
+// Let's check `QuizModal.tsx`:
+// `handleFinish` calls `onComplete`.
+// `handleSubmit` sets `isSubmitted` to true.
+// The user has to click "Hoàn thành" or "Học lại" to trigger `onComplete`? 
+// `handleFinish` is only called if `score >= PASSING_SCORE`.
+// If failed, `onClose` is called.
+// This is a flaw in the original design if we want to track FAILED attempts.
+// I need to change `QuizModal` to trigger a callback even when failed, or at the moment of submission.
 
 interface QuizModalProps {
   isOpen: boolean;
@@ -8,12 +58,14 @@ interface QuizModalProps {
   onComplete: (result: QuizResult) => void;
   courseTitle: string;
   questions: Question[]; 
+  // Add new prop
+  onAttempt?: (result: QuizResult) => void;
 }
 
 const PASSING_SCORE = 80; // Percent
 const QUIZ_DURATION = 15 * 60; // 15 minutes in seconds
 
-const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, courseTitle, questions }) => {
+const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, courseTitle, questions, onAttempt }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<(string)[]>([]); // Store selected option (A,B,C,D) or text
   const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION);
@@ -74,6 +126,15 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
     const calculatedScore = Math.round((correctCount / questions.length) * 100);
     setScore(calculatedScore);
     setIsSubmitted(true);
+
+    // NEW: Trigger attempt logger immediately upon submission
+    if (onAttempt) {
+        onAttempt({
+            score: calculatedScore,
+            passed: calculatedScore >= PASSING_SCORE,
+            date: new Date().toISOString()
+        });
+    }
   };
 
   const handleFinish = (e: React.MouseEvent) => {
