@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Role } from '../types';
-import { Plus, Trash2, Edit, Save, X, Search, Shield, User as UserIcon, Users } from 'lucide-react';
+import { Plus, Trash2, Edit, Save, X, Search, Shield, User as UserIcon, Users, Lock, Key } from 'lucide-react';
 
 // REPLACE THIS WITH YOUR ACTUAL DEPLOYED GOOGLE APPS SCRIPT WEB APP URL
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxzPg7uA_zeQ_rUf3smdQehHPDFwePpvXPFsIfkKeXgcUmbK_MOPp9mR8KPz6vfXs9i/exec';
@@ -23,6 +23,8 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
+    username: '',
+    password: '',
     role: Role.LEARNER,
     department: ''
   });
@@ -31,6 +33,8 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
     setFormData({
       fullName: '',
       email: '',
+      username: '',
+      password: '',
       role: Role.LEARNER,
       department: ''
     });
@@ -44,6 +48,8 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
       setFormData({
         fullName: user.name,
         email: user.email,
+        username: user.username,
+        password: user.password || '', // Allow editing password
         role: user.role,
         department: user.department
       });
@@ -57,50 +63,65 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
     e.preventDefault();
     
     // Basic validation
-    if (!formData.fullName || !formData.email) {
-      alert("Vui lòng điền tên và email!");
+    if (!formData.fullName || !formData.email || !formData.username || !formData.password) {
+      alert("Vui lòng điền đầy đủ các trường bắt buộc (Tên, Email, Username, Password)!");
       return;
+    }
+
+    // Check unique username (if new user or username changed)
+    const isUsernameTaken = users.some(u => 
+        u.username.toLowerCase() === formData.username.toLowerCase() && 
+        (!editingUser || u.id !== editingUser.id)
+    );
+
+    if (isUsernameTaken) {
+        alert("Tên đăng nhập này đã tồn tại! Vui lòng chọn tên khác.");
+        return;
     }
 
     setIsSubmitting(true);
 
     // 1. Prepare JSON Payload for Backend (Strict Structure)
-    // "Do NOT send 'ID' or 'date'"
     const apiPayload = {
       type: 'users',
       fullName: formData.fullName,
       email: formData.email,
+      username: formData.username,
+      // Note: Sending password to Google Sheet insecurely is for demo only
+      password: formData.password, 
       role: formData.role,
       department: formData.department
     };
 
     try {
       // 2. Send POST request to Google Apps Script
-      await fetch(SCRIPT_URL, {
+      // NOTE: In local dev or without CORS proxy, this might fail or be opaque.
+      // We process the local state update regardless for immediate UI feedback.
+      fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors', 
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(apiPayload)
-      });
+      }).catch(err => console.error("Sync error", err));
 
       // 3. Update Local State (Optimistic UI)
-      // Since we don't get the ID back in no-cors mode, we generate a mock user for the UI to update immediately.
-      // We also auto-generate username/password for the local session so the new user can "login" in this demo session.
       const localUser: User = editingUser 
         ? { 
             ...editingUser, 
             name: formData.fullName, 
             email: formData.email, 
+            username: formData.username,
+            password: formData.password,
             role: formData.role, 
             department: formData.department 
           }
         : {
             id: `u-${Date.now()}`,
             name: formData.fullName,
-            username: formData.email.split('@')[0], // Auto-generate username from email
-            password: '123', // Default password
+            username: formData.username,
+            password: formData.password,
             email: formData.email,
             role: formData.role,
             avatar: `https://ui-avatars.com/api/?name=${formData.fullName}&background=random`,
@@ -114,13 +135,13 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
         onAddUser(localUser);
       }
 
-      alert(editingUser ? "Cập nhật thành công!" : "Thêm mới thành công!");
+      alert(editingUser ? "Cập nhật thành công!" : "Tạo tài khoản thành công!");
       setIsModalOpen(false);
       resetForm();
 
     } catch (error) {
-      console.error("API Error:", error);
-      alert("Có lỗi xảy ra khi kết nối đến server.");
+      console.error("Error:", error);
+      alert("Có lỗi xảy ra.");
     } finally {
       setIsSubmitting(false);
     }
@@ -135,7 +156,8 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
 
   const filteredUsers = visibleUsers.filter(u => 
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -143,13 +165,13 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Quản lý Học viên</h1>
-          <p className="text-gray-600">Theo dõi và quản lý thông tin tài khoản.</p>
+          <p className="text-gray-600">Tạo tài khoản và cấp thông tin đăng nhập.</p>
         </div>
         <button 
           onClick={() => handleOpenModal()}
           className="bg-brand-blue text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-md"
         >
-          <Plus size={20} /> Thêm mới
+          <Plus size={20} /> Tạo tài khoản mới
         </button>
       </div>
 
@@ -157,7 +179,7 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
         <input 
           type="text" 
-          placeholder="Tìm kiếm theo tên hoặc email..." 
+          placeholder="Tìm kiếm theo tên, email hoặc username..." 
           className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue/20"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -169,6 +191,7 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase border-b border-gray-200">
             <tr>
               <th className="px-6 py-4">Học viên</th>
+              <th className="px-6 py-4">Tài khoản</th>
               <th className="px-6 py-4">Vai trò</th>
               <th className="px-6 py-4">Phòng ban</th>
               <th className="px-6 py-4">Tiến độ</th>
@@ -186,6 +209,10 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
                       <div className="text-xs text-gray-500">{user.email}</div>
                     </div>
                   </div>
+                </td>
+                <td className="px-6 py-4">
+                   <div className="text-sm font-medium text-gray-800">{user.username}</div>
+                   <div className="text-xs text-gray-500 font-mono">Pass: {user.password || '***'}</div>
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 rounded text-xs font-bold flex items-center w-fit gap-1 ${
@@ -229,7 +256,7 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
             ))}
             {filteredUsers.length === 0 && (
                 <tr>
-                    <td colSpan={5} className="text-center py-8 text-gray-500">
+                    <td colSpan={6} className="text-center py-8 text-gray-500">
                         Không tìm thấy học viên nào.
                     </td>
                 </tr>
@@ -241,13 +268,13 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
       {/* Modal Popup */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
             <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
-              <h3 className="font-bold text-gray-800">{editingUser ? 'Sửa thông tin' : 'Thêm người dùng mới'}</h3>
+              <h3 className="font-bold text-gray-800">{editingUser ? 'Sửa thông tin tài khoản' : 'Tạo tài khoản mới'}</h3>
               <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-gray-500 hover:text-gray-700"/></button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form onSubmit={handleSave} className="p-6 space-y-4 overflow-y-auto">
               {/* Full Name Field */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Họ và Tên (Full Name) <span className="text-red-500">*</span></label>
@@ -271,6 +298,40 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
                   onChange={e => setFormData({...formData, email: e.target.value})}
                   placeholder="email@example.com"
                 />
+              </div>
+
+              {/* ACCOUNT CREDENTIALS SECTION */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <h4 className="text-xs font-bold text-blue-800 uppercase mb-3 flex items-center gap-1">
+                      <Lock size={12}/> Thông tin đăng nhập
+                  </h4>
+                  <div className="space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tên đăng nhập (Username) <span className="text-red-500">*</span></label>
+                        <input 
+                            required
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none bg-white"
+                            value={formData.username}
+                            onChange={e => setFormData({...formData, username: e.target.value.replace(/\s/g, '')})}
+                            placeholder="VD: user123"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Mật khẩu (Password) <span className="text-red-500">*</span></label>
+                        <div className="relative">
+                            <input 
+                                required
+                                type="text" 
+                                className="w-full p-2 pl-8 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none bg-white font-mono"
+                                value={formData.password}
+                                onChange={e => setFormData({...formData, password: e.target.value})}
+                                placeholder="Nhập mật khẩu"
+                            />
+                            <Key size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"/>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Lưu ý: Hãy ghi lại mật khẩu này để cấp cho người dùng.</p>
+                      </div>
+                  </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -300,21 +361,21 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-end gap-3">
+              <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)} 
                   className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
                   disabled={isSubmitting}
                 >
-                  Cancel
+                  Hủy
                 </button>
                 <button 
                   type="submit" 
                   className={`px-6 py-2 bg-brand-blue text-white rounded hover:bg-blue-700 flex items-center gap-2 ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
                   disabled={isSubmitting}
                 >
-                    <Save size={18} /> {isSubmitting ? 'Sending...' : 'Save'}
+                    <Save size={18} /> {isSubmitting ? 'Đang lưu...' : 'Lưu tài khoản'}
                 </button>
               </div>
             </form>

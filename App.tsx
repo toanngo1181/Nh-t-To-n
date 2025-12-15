@@ -1300,7 +1300,13 @@ const MainApp = () => {
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(MOCK_USERS);
+  
+  // INITIALIZE USERS FROM LOCAL STORAGE OR DEFAULT
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('app_users');
+    return saved ? JSON.parse(saved) : MOCK_USERS;
+  });
+
   const [allCourses, setAllCourses] = useState<Course[]>(MOCK_COURSES);
   const [allQuestions, setAllQuestions] = useState<Question[]>(SAMPLE_QUESTIONS);
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
@@ -1324,6 +1330,11 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('app_language', language);
   }, [language]);
+
+  // Persist users changes
+  useEffect(() => {
+    localStorage.setItem('app_users', JSON.stringify(users));
+  }, [users]);
 
   // Update totalStudents for each course when users change
   useEffect(() => {
