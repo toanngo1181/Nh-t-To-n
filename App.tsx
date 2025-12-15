@@ -3,7 +3,7 @@ import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useL
 import { 
   BookOpen, LayoutDashboard, User as UserIcon, LogOut, 
   Search, Bell, ChevronRight, Play, FileText, CheckCircle, 
-  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw
+  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_COURSES, SAMPLE_QUESTIONS } from './constants';
 import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment } from './types';
@@ -35,6 +35,8 @@ const AppContext = React.createContext<{
   logout: () => void;
   appLogo: string;
   setAppLogo: (url: string) => void;
+  language: string;
+  setLanguage: (lang: string) => void;
 }>({
   user: null,
   setUser: () => {},
@@ -53,7 +55,9 @@ const AppContext = React.createContext<{
   addCertificate: () => {},
   logout: () => {},
   appLogo: '/logonew.png',
-  setAppLogo: () => {}
+  setAppLogo: () => {},
+  language: 'vi',
+  setLanguage: () => {}
 });
 
 // --- Auth Component ---
@@ -206,9 +210,17 @@ const Sidebar = () => {
 };
 
 const Header = () => {
-  const { user, appLogo } = React.useContext(AppContext);
+  const { user, appLogo, language } = React.useContext(AppContext);
   const role = user?.role;
   
+  const getFlag = () => {
+    switch(language) {
+        case 'en': return '🇺🇸';
+        case 'km': return '🇰🇭';
+        default: return '🇻🇳';
+    }
+  }
+
   return (
     <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center justify-between sticky top-0 z-10">
       <div className="flex items-center gap-4 md:hidden">
@@ -226,6 +238,7 @@ const Header = () => {
       </div>
 
       <div className="flex items-center gap-4">
+        <div className="text-lg cursor-default" title="Ngôn ngữ hiện tại">{getFlag()}</div>
         <button className="relative text-gray-500 hover:text-brand-blue">
           <Bell size={20} />
           <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
@@ -244,7 +257,7 @@ const Header = () => {
 };
 
 const SystemSettings = () => {
-    const { appLogo, setAppLogo } = React.useContext(AppContext);
+    const { appLogo, setAppLogo, language, setLanguage } = React.useContext(AppContext);
     const [tempLogo, setTempLogo] = useState(appLogo);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -276,8 +289,14 @@ const SystemSettings = () => {
         }
     }
 
+    const languages = [
+        { code: 'vi', name: 'Tiếng Việt', sub: 'Vietnamese', flag: '🇻🇳' },
+        { code: 'en', name: 'English', sub: 'Tiếng Anh', flag: '🇺🇸' },
+        { code: 'km', name: 'Khmer', sub: 'Tiếng Khmer', flag: '🇰🇭' },
+    ];
+
     return (
-        <div className="p-6 max-w-4xl mx-auto animate-fade-in">
+        <div className="p-6 max-w-4xl mx-auto animate-fade-in space-y-8">
              <div className="mb-6 border-b pb-4">
                 <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
                     <Settings className="text-gray-500" /> Cài đặt hệ thống
@@ -285,9 +304,48 @@ const SystemSettings = () => {
                 <p className="text-gray-600 mt-1">Quản lý giao diện và cấu hình chung của nền tảng E-Learning.</p>
             </div>
 
+            {/* Language Selection Section */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-6 border-b border-gray-100 bg-gray-50">
-                    <h3 className="font-bold text-gray-800">Cập nhật Logo thương hiệu</h3>
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <Globe size={18} className="text-gray-500" /> Ngôn ngữ hiển thị
+                    </h3>
+                    <p className="text-sm text-gray-500">Chọn ngôn ngữ chính cho giao diện hệ thống.</p>
+                </div>
+                <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {languages.map(lang => (
+                            <button
+                                key={lang.code}
+                                onClick={() => setLanguage(lang.code)}
+                                className={`p-4 border rounded-xl flex items-center gap-3 transition-all relative ${
+                                    language === lang.code 
+                                    ? 'border-brand-blue bg-blue-50 ring-1 ring-brand-blue' 
+                                    : 'border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                                }`}
+                            >
+                                <span className="text-3xl">{lang.flag}</span>
+                                <div className="text-left">
+                                    <p className={`font-bold ${language === lang.code ? 'text-brand-blue' : 'text-gray-800'}`}>{lang.name}</p>
+                                    <p className="text-xs text-gray-500">{lang.sub}</p>
+                                </div>
+                                {language === lang.code && (
+                                    <div className="absolute top-4 right-4 text-brand-blue">
+                                        <CheckCircle size={18} />
+                                    </div>
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Logo Settings Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-6 border-b border-gray-100 bg-gray-50">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <ImageIcon size={18} className="text-gray-500" /> Cập nhật Logo thương hiệu
+                    </h3>
                     <p className="text-sm text-gray-500">Logo này sẽ hiển thị trên trang đăng nhập, menu bên trái, thanh header và trên chứng chỉ.</p>
                 </div>
 
@@ -1252,10 +1310,20 @@ const App = () => {
     return localStorage.getItem('app_logo') || '/logonew.png';
   });
 
+  // Initialize language from localStorage or default
+  const [language, setLanguage] = useState<string>(() => {
+    return localStorage.getItem('app_language') || 'vi';
+  });
+
   // Persist logo changes
   useEffect(() => {
     localStorage.setItem('app_logo', appLogo);
   }, [appLogo]);
+
+  // Persist language changes
+  useEffect(() => {
+    localStorage.setItem('app_language', language);
+  }, [language]);
 
   // Update totalStudents for each course when users change
   useEffect(() => {
@@ -1341,7 +1409,8 @@ const App = () => {
         completedLessons, completeLesson,
         certificates, addCertificate,
         logout,
-        appLogo, setAppLogo
+        appLogo, setAppLogo,
+        language, setLanguage
     }}>
         <Router>
              {!user ? (
