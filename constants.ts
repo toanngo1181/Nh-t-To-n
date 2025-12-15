@@ -43,6 +43,9 @@ export const MOCK_USERS: User[] = [
 
 export const CURRENT_USER: User = MOCK_USERS[1]; 
 
+// --- LOGO URL ---
+export const LOGO_URL = "/logonew.png"; // Updated to new logo file in public folder
+
 // --- DỮ LIỆU CÂU HỎI THỰC TẾ (CHO KHÓA 1 - FULL 5 LEVEL) ---
 const REAL_QUESTIONS_COURSE_1: Question[] = [
   // LEVEL 1: CƠ BẢN

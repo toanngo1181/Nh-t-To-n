@@ -3,7 +3,7 @@ import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useL
 import { 
   BookOpen, LayoutDashboard, User as UserIcon, LogOut, 
   Search, Bell, ChevronRight, Play, FileText, CheckCircle, 
-  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight
+  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_COURSES, SAMPLE_QUESTIONS } from './constants';
 import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment } from './types';
@@ -33,6 +33,8 @@ const AppContext = React.createContext<{
   certificates: CertificateData[];
   addCertificate: (c: CertificateData) => void;
   logout: () => void;
+  appLogo: string;
+  setAppLogo: (url: string) => void;
 }>({
   user: null,
   setUser: () => {},
@@ -49,7 +51,9 @@ const AppContext = React.createContext<{
   completeLesson: () => {},
   certificates: [],
   addCertificate: () => {},
-  logout: () => {}
+  logout: () => {},
+  appLogo: '/logonew.png',
+  setAppLogo: () => {}
 });
 
 // --- Auth Component ---
@@ -57,6 +61,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (u: string, p: string) => void }) =
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const { appLogo } = React.useContext(AppContext);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,8 +77,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (u: string, p: string) => void }) =
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col md:flex-row">
         {/* Left Side: Brand */}
         <div className="bg-brand-blue p-8 flex flex-col justify-center items-center text-center md:w-2/5">
-          <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center text-brand-blue font-bold text-3xl mb-6 shadow-lg">VT</div>
-          <h1 className="text-3xl font-bold text-white font-heading mb-2">VinhTan</h1>
+          <img src={appLogo} alt="VinhTan Logo" className="w-48 mb-6 object-contain drop-shadow-md" />
           <h2 className="text-xl text-blue-100 font-light">E-Learning Platform</h2>
           <p className="text-blue-200 text-sm mt-8 opacity-80">Hệ thống đào tạo và quản lý chất lượng chăn nuôi hàng đầu.</p>
         </div>
@@ -128,7 +132,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (u: string, p: string) => void }) =
 // --- Feature Components (Pages) ---
 
 const Sidebar = () => {
-  const { user, logout } = React.useContext(AppContext);
+  const { user, logout, appLogo } = React.useContext(AppContext);
   const location = useLocation();
   const role = user?.role;
 
@@ -144,6 +148,7 @@ const Sidebar = () => {
     { icon: Users, label: 'Quản lý Người dùng', path: '/admin/users' },
     { icon: BookOpen, label: 'Quản lý Chủ đề', path: '/admin/courses' },
     { icon: HelpCircle, label: 'Ngân hàng câu hỏi', path: '/admin/questions' },
+    { icon: Settings, label: 'Cài đặt hệ thống', path: '/admin/settings' },
   ];
 
   const instructorLinks = [
@@ -159,14 +164,15 @@ const Sidebar = () => {
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 h-screen sticky top-0 hidden md:flex flex-col">
-      <div className="p-6 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-           <div className="w-8 h-8 bg-brand-blue rounded-lg flex items-center justify-center text-white font-bold">VT</div>
-           <span className="font-heading font-bold text-xl text-gray-800">VinhTan<span className="text-brand-blue">Edu</span></span>
-        </div>
+      <div className="flex items-center justify-center mb-8 px-4 py-6">
+        <img 
+          src={appLogo} 
+          alt="Logo" 
+          className="w-full max-h-16 object-contain"
+        />
       </div>
       
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {links.map((link) => (
           <Link
             key={link.path}
@@ -200,14 +206,14 @@ const Sidebar = () => {
 };
 
 const Header = () => {
-  const { user } = React.useContext(AppContext);
+  const { user, appLogo } = React.useContext(AppContext);
   const role = user?.role;
   
   return (
     <header className="bg-white border-b border-gray-200 h-16 px-6 flex items-center justify-between sticky top-0 z-10">
       <div className="flex items-center gap-4 md:hidden">
         <Menu className="text-gray-600" />
-        <span className="font-heading font-bold text-lg">VinhTan</span>
+        <img src={appLogo} alt="VinhTan Logo" className="h-8 w-auto" />
       </div>
 
       <div className="hidden md:flex flex-1 max-w-xl relative mx-4">
@@ -236,6 +242,128 @@ const Header = () => {
     </header>
   );
 };
+
+const SystemSettings = () => {
+    const { appLogo, setAppLogo } = React.useContext(AppContext);
+    const [tempLogo, setTempLogo] = useState(appLogo);
+    const [isSaving, setIsSaving] = useState(false);
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setTempLogo(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSave = () => {
+        setIsSaving(true);
+        // Simulate network delay
+        setTimeout(() => {
+            setAppLogo(tempLogo);
+            alert("Đã cập nhật logo hệ thống thành công!");
+            setIsSaving(false);
+        }, 800);
+    };
+
+    const handleReset = () => {
+        if(confirm("Bạn có chắc muốn đặt lại logo về mặc định?")) {
+            setTempLogo("/logonew.png");
+            setAppLogo("/logonew.png");
+        }
+    }
+
+    return (
+        <div className="p-6 max-w-4xl mx-auto animate-fade-in">
+             <div className="mb-6 border-b pb-4">
+                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Settings className="text-gray-500" /> Cài đặt hệ thống
+                </h1>
+                <p className="text-gray-600 mt-1">Quản lý giao diện và cấu hình chung của nền tảng E-Learning.</p>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-6 border-b border-gray-100 bg-gray-50">
+                    <h3 className="font-bold text-gray-800">Cập nhật Logo thương hiệu</h3>
+                    <p className="text-sm text-gray-500">Logo này sẽ hiển thị trên trang đăng nhập, menu bên trái, thanh header và trên chứng chỉ.</p>
+                </div>
+
+                <div className="p-8">
+                    <div className="flex flex-col md:flex-row gap-8 items-start">
+                        {/* Preview Section */}
+                        <div className="w-full md:w-1/3 flex flex-col items-center">
+                            <p className="text-sm font-medium text-gray-500 mb-3 uppercase tracking-wide">Xem trước</p>
+                            <div className="w-full aspect-square bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center p-4 relative group">
+                                <img src={tempLogo} alt="Logo Preview" className="max-w-full max-h-full object-contain" />
+                                {tempLogo !== appLogo && (
+                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                                        <p className="text-white text-xs font-bold">Chưa lưu</p>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="mt-4 w-full bg-brand-blue p-4 rounded text-center">
+                                <p className="text-xs text-blue-200 mb-2">Giao diện Sidebar (Dark/Blue)</p>
+                                <img src={tempLogo} alt="Sidebar Preview" className="h-8 mx-auto object-contain brightness-0 invert" />
+                            </div>
+                        </div>
+
+                        {/* Upload Section */}
+                        <div className="flex-1 space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Tải ảnh lên (Khuyên dùng PNG trong suốt)</label>
+                                <div className="flex items-center justify-center w-full">
+                                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <Upload className="w-8 h-8 mb-3 text-gray-400" />
+                                            <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click để tải ảnh</span> hoặc kéo thả vào đây</p>
+                                            <p className="text-xs text-gray-500">PNG, JPG, SVG (Tối đa 2MB)</p>
+                                        </div>
+                                        <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Hoặc dán đường dẫn ảnh (URL)</label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <ImageIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                                        <input 
+                                            type="text" 
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                                            placeholder="https://example.com/logo.png"
+                                            value={tempLogo.startsWith('data:') ? '' : tempLogo}
+                                            onChange={(e) => setTempLogo(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="flex gap-3 pt-4 border-t border-gray-100">
+                                <button 
+                                    onClick={handleSave} 
+                                    disabled={isSaving || tempLogo === appLogo}
+                                    className={`flex items-center gap-2 px-6 py-2 bg-brand-blue text-white rounded-lg font-medium shadow hover:bg-blue-700 transition-colors ${isSaving || tempLogo === appLogo ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <Save size={18} /> {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+                                </button>
+                                <button 
+                                    onClick={handleReset}
+                                    className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                                >
+                                    <RefreshCw size={18} /> Đặt lại mặc định
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 // --- LEARNER PAGES ---
 const LearnerDashboard = () => {
@@ -433,7 +561,7 @@ const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users } = React.useContext(AppContext);
+  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo } = React.useContext(AppContext);
   const course = allCourses.find(c => c.id === id);
 
   const [showQuiz, setShowQuiz] = useState(false);
@@ -685,7 +813,7 @@ const CourseDetail = () => {
 
       {certData && (
         <div className={`${showCert ? 'block' : 'hidden'}`}>
-             <Certificate data={certData} onClose={() => setShowCert(false)} onHome={handleHome} />
+             <Certificate data={certData} onClose={() => setShowCert(false)} onHome={handleHome} logoUrl={appLogo} />
         </div>
       )}
     </div>
@@ -984,6 +1112,11 @@ const AdminDashboard = () => {
       );
   }
 
+  // Settings Route
+  if (location.pathname === '/admin/settings') {
+      return <SystemSettings />;
+  }
+
   // Default Admin Dashboard View
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -1114,6 +1247,15 @@ const App = () => {
   const [allQuestions, setAllQuestions] = useState<Question[]>(SAMPLE_QUESTIONS);
   const [completedLessons, setCompletedLessons] = useState<string[]>([]);
   const [certificates, setCertificates] = useState<CertificateData[]>([]);
+  // Initialize appLogo from localStorage or default
+  const [appLogo, setAppLogo] = useState<string>(() => {
+    return localStorage.getItem('app_logo') || '/logonew.png';
+  });
+
+  // Persist logo changes
+  useEffect(() => {
+    localStorage.setItem('app_logo', appLogo);
+  }, [appLogo]);
 
   // Update totalStudents for each course when users change
   useEffect(() => {
@@ -1198,7 +1340,8 @@ const App = () => {
         enrollCourse,
         completedLessons, completeLesson,
         certificates, addCertificate,
-        logout
+        logout,
+        appLogo, setAppLogo
     }}>
         <Router>
              {!user ? (

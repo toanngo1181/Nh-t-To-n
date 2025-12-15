@@ -6,9 +6,10 @@ interface CertificateProps {
   data: CertificateData;
   onClose: () => void;
   onHome: () => void;
+  logoUrl: string; // Dynamic logo URL
 }
 
-const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome }) => {
+const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome, logoUrl }) => {
   
   const handleDownload = () => {
     // Trigger browser print dialog which allows saving as PDF
@@ -37,9 +38,7 @@ const Certificate: React.FC<CertificateProps> = ({ data, onClose, onHome }) => {
                 <div className="absolute inset-2 border border-gray-300 pointer-events-none print:hidden"></div>
 
                 <div className="mt-8 z-10">
-                    <div className="w-20 h-20 bg-brand-blue text-white rounded-full flex items-center justify-center mx-auto mb-4 font-bold text-2xl shadow-lg print:text-black print:bg-transparent print:border print:border-black">
-                        VT
-                    </div>
+                    <img src={logoUrl} alt="VinhTan Group" className="h-24 mx-auto mb-4 object-contain print:h-28" />
                     <h1 className="text-5xl font-heading font-bold text-brand-blue uppercase tracking-widest mb-2 print:text-black">Giấy Chứng Nhận</h1>
                     <p className="text-xl text-gray-500 font-serif italic print:text-gray-600">Hoàn thành khóa học trực tuyến</p>
                 </div>
