@@ -3,7 +3,7 @@ import { HashRouter as Router, Routes, Route, Link, useNavigate, useParams, useL
 import { 
   BookOpen, LayoutDashboard, User as UserIcon, LogOut, 
   Search, Bell, ChevronRight, Play, FileText, CheckCircle, 
-  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe, School, Eye
+  Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe, School, Eye, Loader2
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_COURSES, SAMPLE_QUESTIONS } from './constants';
 import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment, ActivityLog, ActivityType, CertificateConfig } from './types';
@@ -15,6 +15,10 @@ import QuestionBank from './components/QuestionBank';
 import UserManager from './components/UserManager';
 import ClassManager from './components/ClassManager';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+
+// --- API CONSTANTS ---
+// Sử dụng cùng URL với UserManager
+const API_URL = 'https://script.google.com/macros/s/AKfycbxzPg7uA_zeQ_rUf3smdQehHPDFwePpvXPFsIfkKeXgcUmbK_MOPp9mR8KPz6vfXs9i/exec';
 
 // --- Contexts ---
 export const AppContext = React.createContext<{
@@ -330,26 +334,100 @@ const SettingsMediaInput = ({
 const SystemSettings = () => {
   const { appLogo, setAppLogo, language, setLanguage, certificateConfig, setCertificateConfig } = React.useContext(AppContext);
   const [localLogo, setLocalLogo] = useState(appLogo);
-  
-  // Local state for certificate config to avoid instant updates before save
   const [localCertConfig, setLocalCertConfig] = useState(certificateConfig);
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
+  // Fetch Settings from API on Mount
   useEffect(() => {
-    setLocalLogo(appLogo);
-    setLocalCertConfig(certificateConfig);
-  }, [appLogo, certificateConfig]);
+    const fetchSettings = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch(`${API_URL}?type=settings`);
+            const data = await res.json();
+            
+            if (data && typeof data === 'object') {
+                // Map API response to State
+                if (data.logo_url) {
+                    setLocalLogo(data.logo_url);
+                    setAppLogo(data.logo_url); // Sync Context immediately
+                }
+                
+                const newCertConfig = {
+                    backgroundImage: data.cert_bg || '',
+                    issuerName: data.cert_signer || 'TS. Phạm Văn B',
+                    issuerTitle: data.cert_role || 'GIÁM ĐỐC ĐÀO TẠO',
+                    signatureImage: data.signature_url || ''
+                };
+                
+                setLocalCertConfig(newCertConfig);
+                setCertificateConfig(newCertConfig); // Sync Context
+            }
+        } catch (error) {
+            console.error("Failed to fetch settings:", error);
+            // Optionally fallback to local storage or defaults if API fails
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-  const handleSave = () => {
-      setAppLogo(localLogo);
-      setCertificateConfig(localCertConfig);
-      alert("Đã lưu cài đặt hệ thống!");
+    fetchSettings();
+  }, [setAppLogo, setCertificateConfig]);
+
+  const handleSave = async () => {
+      setIsSaving(true);
+      
+      const payload = {
+          type: 'settings',
+          logo_url: localLogo,
+          cert_bg: localCertConfig.backgroundImage,
+          cert_signer: localCertConfig.issuerName,
+          cert_role: localCertConfig.issuerTitle,
+          signature_url: localCertConfig.signatureImage
+      };
+
+      try {
+          await fetch(API_URL, {
+              method: 'POST',
+              mode: 'no-cors', // Assuming Google Apps Script Web App
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+
+          // Update Context (Optimistic UI)
+          setAppLogo(localLogo);
+          setCertificateConfig(localCertConfig);
+          
+          // Also save to localStorage as backup/cache via Context effects
+          alert("Đã lưu cài đặt hệ thống thành công!");
+      } catch (error) {
+          console.error("Failed to save settings:", error);
+          alert("Có lỗi xảy ra khi lưu cài đặt.");
+      } finally {
+          setIsSaving(false);
+      }
   };
+
+  if (isLoading) {
+      return (
+          <div className="flex flex-col items-center justify-center min-h-[400px]">
+              <Loader2 className="animate-spin text-brand-blue mb-4" size={48} />
+              <p className="text-gray-500">Đang tải cấu hình hệ thống...</p>
+          </div>
+      );
+  }
 
   return (
       <div className="p-6 max-w-4xl mx-auto pb-20">
-          <h1 className="text-2xl font-bold text-gray-800 mb-6">Cài đặt hệ thống</h1>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold text-gray-800">Cài đặt hệ thống</h1>
+            <div className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded border border-green-200 flex items-center gap-1">
+                <Globe size={12}/> Đồng bộ Cloud
+            </div>
+          </div>
           
-          <div className="space-y-8">
+          <div className="space-y-8 animate-fade-in">
             {/* General Settings */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
                 <h3 className="font-bold text-lg text-gray-700 border-b pb-2">Chung</h3>
@@ -442,9 +520,11 @@ const SystemSettings = () => {
             <div className="flex justify-end">
                   <button 
                       onClick={handleSave}
-                      className="px-8 py-3 bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg font-bold flex items-center gap-2"
+                      disabled={isSaving}
+                      className={`px-8 py-3 bg-brand-blue text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg font-bold flex items-center gap-2 ${isSaving ? 'opacity-70 cursor-not-allowed' : ''}`}
                   >
-                      <Save size={20}/> Lưu thay đổi
+                      {isSaving ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>}
+                      {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
                   </button>
             </div>
           </div>
@@ -1297,6 +1377,30 @@ const App = () => {
       signatureImage: ''
     };
   });
+
+  // FETCH GLOBAL SETTINGS ON MOUNT
+  useEffect(() => {
+    const fetchGlobalSettings = async () => {
+        try {
+            const res = await fetch(`${API_URL}?type=settings`);
+            const data = await res.json();
+            
+            if (data && typeof data === 'object') {
+                if (data.logo_url) setAppLogo(data.logo_url);
+                
+                setCertificateConfig({
+                    backgroundImage: data.cert_bg || '',
+                    issuerName: data.cert_signer || 'TS. Phạm Văn B',
+                    issuerTitle: data.cert_role || 'GIÁM ĐỐC ĐÀO TẠO',
+                    signatureImage: data.signature_url || ''
+                });
+            }
+        } catch (error) {
+            console.error("Auto-fetch settings failed:", error);
+        }
+    };
+    fetchGlobalSettings();
+  }, []);
 
   // Persist logo changes
   useEffect(() => {
