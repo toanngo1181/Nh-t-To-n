@@ -14,7 +14,6 @@ import CourseEditor from './components/CourseEditor';
 import QuestionBank from './components/QuestionBank';
 import UserManager from './components/UserManager';
 import ClassManager from './components/ClassManager';
-import TopicManagement from './components/TopicManagement';
 
 // --- API CONSTANTS ---
 const API_URL = 'https://script.google.com/macros/s/AKfycbxzPg7uA_zeQ_rUf3smdQehHPDFwePpvXPFsIfkKeXgcUmbK_MOPp9mR8KPz6vfXs9i/exec';
@@ -175,7 +174,6 @@ const Sidebar = () => {
     { icon: Users, label: 'Quản lý Người dùng', path: '/admin/users' },
     { icon: School, label: 'Quản lý Lớp học', path: '/admin/classes' },
     { icon: BookOpen, label: 'Quản lý Chủ đề', path: '/admin/courses' },
-    { icon: Files, label: 'Quản lý Học liệu', path: '/admin/topics' },
     { icon: HelpCircle, label: 'Ngân hàng câu hỏi', path: '/admin/questions' },
     { icon: Settings, label: 'Cài đặt hệ thống', path: '/admin/settings' },
   ];
@@ -185,7 +183,6 @@ const Sidebar = () => {
     { icon: Users, label: 'Quản lý Học viên', path: '/admin/users' },
     { icon: School, label: 'Quản lý Lớp học', path: '/admin/classes' },
     { icon: BookOpen, label: 'Quản lý Chủ đề', path: '/admin/courses' },
-    { icon: Files, label: 'Quản lý Học liệu', path: '/admin/topics' },
     { icon: HelpCircle, label: 'Ngân hàng câu hỏi', path: '/admin/questions' },
   ];
 
@@ -283,9 +280,6 @@ const Header = () => {
   );
 };
 
-// ... (Settings, LearnerDashboard, CourseList components remain mostly the same, skipping for brevity but assuming they are here or imported)
-// For this single file restoration, I will include essential ones.
-
 const LessonView = () => {
     const { courseId, lessonId } = useParams();
     const navigate = useNavigate();
@@ -301,14 +295,13 @@ const LessonView = () => {
 
     const [pdfUrl, setPdfUrl] = useState<string>('');
 
-    // --- HELPER: Convert Base64 to Blob manually to avoid network errors ---
+    // --- HELPER: Robust Base64 to Blob ---
     const b64toBlob = (b64Data: string, contentType = 'application/pdf', sliceSize = 512) => {
         try {
-            // Check if input is a data URI, remove prefix
-            const parts = b64Data.split(',');
-            const base64 = parts.length > 1 ? parts[1] : parts[0];
+            // Remove 'data:application/pdf;base64,' if present
+            const cleanB64 = b64Data.replace(/^data:[^;]+;base64,/, '');
             
-            const byteCharacters = atob(base64);
+            const byteCharacters = atob(cleanB64);
             const byteArrays = [];
 
             for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
@@ -341,19 +334,25 @@ const LessonView = () => {
             });
         }
 
-        // --- PDF HANDLING LOGIC ---
+        // --- PDF URL HANDLING ---
         if (lesson?.type === ContentType.PDF && lesson.url) {
+            // Case 1: Base64 Data URI
             if (lesson.url.startsWith('data:')) {
-                // Manually convert to Blob to avoid network request limits
                 const blob = b64toBlob(lesson.url);
                 if (blob) {
                     const objectUrl = URL.createObjectURL(blob);
                     setPdfUrl(objectUrl);
                 } else {
-                    // Fallback if conversion fails
-                    setPdfUrl(lesson.url);
+                    setPdfUrl(lesson.url); // Fallback
                 }
-            } else {
+            } 
+            // Case 2: Google Drive Link (Regular) -> Convert to Preview
+            else if (lesson.url.includes('drive.google.com') && lesson.url.includes('/view')) {
+                const previewUrl = lesson.url.replace('/view', '/preview');
+                setPdfUrl(previewUrl);
+            }
+            // Case 3: Regular URL
+            else {
                 setPdfUrl(lesson.url);
             }
         }
@@ -372,10 +371,12 @@ const LessonView = () => {
         }
     };
 
-    // Helper to identify uploaded raw files vs YouTube links
     const isRawFile = (url: string) => {
         return url.startsWith('data:') || url.startsWith('blob:') || url.match(/\.(mp4|webm|ogg|mov)$/i);
     };
+
+    // Helper to check if it's a Drive link for special iframe rendering
+    const isDriveLink = (url: string) => url.includes('drive.google.com');
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)]">
@@ -425,7 +426,6 @@ const LessonView = () => {
                          </div>
                      )
                 ) : lesson.type === ContentType.IMAGE ? (
-                     // --- IMAGE RENDERER ---
                      lesson.url ? (
                          <div className="w-full h-full bg-black flex items-center justify-center overflow-auto">
                             <img 
@@ -441,20 +441,51 @@ const LessonView = () => {
                          </div>
                      )
                 ) : (
-                    // --- PDF RENDERER (Updated) ---
+                    // --- IMPROVED PDF RENDERER ---
                     <div className="bg-white w-full h-full overflow-hidden relative flex flex-col">
                         {lesson.url ? (
                             <>
-                                <iframe 
-                                    src={pdfUrl || lesson.url} 
-                                    className="w-full flex-1 border-none bg-gray-100"
-                                    title="PDF Viewer"
-                                />
-                                {/* Fallback Bar */}
-                                <div className="bg-gray-50 border-t border-gray-200 p-2 flex justify-center">
+                                {/* Use IFRAME for Google Drive Preview (best compatibility) */}
+                                {isDriveLink(pdfUrl || lesson.url) ? (
+                                    <iframe 
+                                        src={pdfUrl || lesson.url}
+                                        className="w-full flex-1 border-none bg-gray-100"
+                                        title="PDF Viewer"
+                                        allow="autoplay"
+                                    />
+                                ) : (
+                                    // Use OBJECT tag for Blobs/Standard PDFs (Avoids "Blocked by Chrome" for data URIs)
+                                    <object 
+                                        data={pdfUrl || lesson.url} 
+                                        type="application/pdf"
+                                        className="w-full flex-1 bg-gray-100"
+                                        key={pdfUrl} // Force re-render if URL changes
+                                    >
+                                        <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
+                                            <FileText size={48} className="opacity-50"/>
+                                            <div className="text-center">
+                                                <p className="font-medium mb-1">Trình duyệt không hỗ trợ xem trực tiếp file này.</p>
+                                                <p className="text-sm">Vui lòng tải về hoặc mở trong tab mới.</p>
+                                            </div>
+                                            <a 
+                                                href={pdfUrl || lesson.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-4 py-2 bg-brand-blue text-white rounded hover:bg-blue-700 transition-colors flex items-center gap-2"
+                                            >
+                                                <ExternalLink size={16}/> Mở tài liệu
+                                            </a>
+                                        </div>
+                                    </object>
+                                )}
+
+                                {/* Always show fallback/download bar */}
+                                <div className="bg-gray-50 border-t border-gray-200 p-2 flex justify-center z-10">
                                      <a 
-                                        href={lesson.url} 
+                                        href={lesson.url.startsWith('data:') ? pdfUrl : lesson.url} 
                                         download={`Tailieu_${lesson.title}.pdf`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         className="text-xs text-brand-blue hover:underline flex items-center gap-1 font-medium"
                                      >
                                         <Download size={14}/> Gặp lỗi hiển thị? Tải file về máy
@@ -478,8 +509,6 @@ const LessonView = () => {
         </div>
     );
 };
-
-// ... (Other components like LearnerDashboard, CourseList, etc.)
 
 const LearnerDashboard = () => {
     const { user, myCourses, completedLessons, certificates } = React.useContext(AppContext);
@@ -764,10 +793,6 @@ const AdminDashboard = () => {
       return <ClassManager users={users} courses={allCourses} activityLogs={activityLogs} />;
   }
 
-  if (location.pathname === '/admin/topics') {
-      return <TopicManagement />;
-  }
-
   if (location.pathname === '/admin/questions') {
       return (
           <div className="p-6 max-w-7xl mx-auto">
@@ -922,7 +947,8 @@ const App = () => {
                 title: "Nội dung đào tạo",
                 lessons: [
                     t.document_file && { id: `doc-${t.id}`, title: 'Tài liệu tham khảo', type: ContentType.PDF, duration: 'PDF', isCompleted: false, level: 1, url: t.document_file },
-                    t.video_file && { id: `vid-${t.id}`, title: 'Video bài giảng', type: ContentType.VIDEO, duration: 'Video', isCompleted: false, level: 1, url: t.video_file }
+                    t.video_file && { id: `vid-${t.id}`, title: 'Video bài giảng', type: ContentType.VIDEO, duration: 'Video', isCompleted: false, level: 1, url: t.video_file },
+                    t.image_file && { id: `img-${t.id}`, title: 'Hình ảnh minh họa', type: ContentType.IMAGE, duration: 'Hình ảnh', isCompleted: false, level: 1, url: t.image_file }
                 ].filter(Boolean) as Lesson[]
             }]
         }));

@@ -162,6 +162,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
   // References for bulk upload inputs per topic
   const videoInputRefs = useRef<{[key: number]: HTMLInputElement | null}>({});
   const pdfInputRefs = useRef<{[key: number]: HTMLInputElement | null}>({});
+  const imageInputRefs = useRef<{[key: number]: HTMLInputElement | null}>({});
 
   useEffect(() => {
     if (initialData) {
@@ -325,18 +326,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
       return;
     }
     
-    // WARNING ONLY: Allows saving even if content is missing, but asks for confirmation
-    const missingContent = Object.entries(levelStats).filter(([lvl, stat]) => !stat.hasVideo || !stat.hasPDF);
-    if (missingContent.length > 0) {
-        const confirmMsg = `CẢNH BÁO: Khóa học chưa hoàn thiện!\n\nCác Level sau chưa đủ điều kiện (Thiếu Video hoặc Tài liệu đọc):\nLevel: ${missingContent.map(m => m[0]).join(', ')}\n\nNếu lưu bây giờ, nội dung này có thể chưa sẵn sàng cho học viên. Bạn có chắc chắn muốn lưu không?`;
-        
-        // If user selects Cancel, stop execution. If OK, proceed to onSave.
-        if (!window.confirm(confirmMsg)) {
-            return;
-        }
-    }
-
-    // Execute Save
+    // NO VALIDATION CHECK: Directly Save
     onSave(course as Course);
   };
 
@@ -354,7 +344,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
             {initialData ? 'Chỉnh sửa khóa học' : 'Tạo khóa học mới'}
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-                Yêu cầu: Mỗi Level cần có ít nhất 1 Video và 1 Tài liệu (PDF/Ảnh).
+                Quản lý và cập nhật nội dung bài học, video, tài liệu cho từng cấp độ.
             </p>
         </div>
         <div className="flex gap-3">
@@ -570,6 +560,14 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                             ref={el => { if(el) pdfInputRefs.current[tIdx] = el; }}
                             onChange={(e) => handleBulkUpload(tIdx, e, ContentType.PDF)}
                         />
+                        <input 
+                            type="file" 
+                            multiple 
+                            accept="image/*" 
+                            className="hidden" 
+                            ref={el => { if(el) imageInputRefs.current[tIdx] = el; }}
+                            onChange={(e) => handleBulkUpload(tIdx, e, ContentType.IMAGE)}
+                        />
 
                         <button 
                             onClick={() => videoInputRefs.current[tIdx]?.click()}
@@ -582,6 +580,12 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                             className="flex-1 py-2 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-2 border border-orange-200 transition-colors"
                         >
                             <FileUp size={14} /> + Upload PDF
+                        </button>
+                        <button 
+                            onClick={() => imageInputRefs.current[tIdx]?.click()}
+                            className="flex-1 py-2 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold hover:bg-purple-100 flex items-center justify-center gap-2 border border-purple-200 transition-colors"
+                        >
+                            <ImageIcon size={14} /> + Upload Image
                         </button>
                         <button 
                             onClick={() => addEmptyLesson(tIdx)}

@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Plus, Loader2, FileText, Video, Image as ImageIcon, X, User as UserIcon, Upload, AlertTriangle, Edit, Save, CheckCircle, Tag } from 'lucide-react';
-// Assuming AppContext is exported from App.tsx or available in the scope.
-// Since App.tsx is the entry point, circular imports are tricky in some setups, but here we assume standard import works or use a shared context file in a real app.
-// For this snippet to work in the provided structure, we will use a workaround or assume the user placed AppContext in a separate file.
-// However, based on the previous file content, AppContext IS in App.tsx. 
-// We will import it.
 import { AppContext } from '../App';
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbxzPg7uA_zeQ_rUf3smdQehHPDFwePpvXPFsIfkKeXgcUmbK_MOPp9mR8KPz6vfXs9i/exec';
@@ -12,10 +7,11 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxzPg7uA_zeQ_rUf3smdQeh
 interface Topic {
   id: string;
   topicName: string;
-  category: string; // New Required Field
-  cover_image: string; // URL
-  document_file: string; // URL
-  video_file: string; // URL
+  category: string; 
+  cover_image: string; // URL cover
+  document_file: string; // URL PDF/Doc
+  video_file: string; // URL Video
+  image_file?: string; // URL Image content
   createdBy: string;
   timestamp: string;
 }
@@ -40,13 +36,15 @@ const TopicManagement: React.FC = () => {
   const [newFiles, setNewFiles] = useState({
     coverImage: '',
     documentFile: '',
-    videoFile: ''
+    videoFile: '',
+    imageFile: ''
   });
 
   // File Input Refs (to clear them)
   const coverInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   // 1. Fetch Topics on Mount
   useEffect(() => {
@@ -85,7 +83,7 @@ const TopicManagement: React.FC = () => {
   };
 
   // 3. Handle File Selection & Validation
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'coverImage' | 'documentFile' | 'videoFile') => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'coverImage' | 'documentFile' | 'videoFile' | 'imageFile') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -116,7 +114,7 @@ const TopicManagement: React.FC = () => {
           category: topic.category
       });
       // Reset new files (user hasn't picked new ones yet)
-      setNewFiles({ coverImage: '', documentFile: '', videoFile: '' });
+      setNewFiles({ coverImage: '', documentFile: '', videoFile: '', imageFile: '' });
       setIsModalOpen(true);
   };
 
@@ -124,7 +122,7 @@ const TopicManagement: React.FC = () => {
   const handleAddNewClick = () => {
       setEditingTopic(null);
       setFormData({ topicName: '', category: '' });
-      setNewFiles({ coverImage: '', documentFile: '', videoFile: '' });
+      setNewFiles({ coverImage: '', documentFile: '', videoFile: '', imageFile: '' });
       setIsModalOpen(true);
   };
 
@@ -160,6 +158,7 @@ const TopicManagement: React.FC = () => {
       cover_image: newFiles.coverImage || "", 
       document_file: newFiles.documentFile || "",
       video_file: newFiles.videoFile || "",
+      image_file: newFiles.imageFile || "",
       createdBy: creatorName
     };
 
@@ -178,6 +177,7 @@ const TopicManagement: React.FC = () => {
       if (coverInputRef.current) coverInputRef.current.value = '';
       if (docInputRef.current) docInputRef.current.value = '';
       if (videoInputRef.current) videoInputRef.current.value = '';
+      if (imageInputRef.current) imageInputRef.current.value = '';
 
       // Refresh list locally
       fetchTopics();
@@ -200,7 +200,7 @@ const TopicManagement: React.FC = () => {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Quản lý Học liệu</h1>
-          <p className="text-gray-600">Tải lên và chỉnh sửa các chủ đề, tài liệu và video đào tạo.</p>
+          <p className="text-gray-600">Tải lên và chỉnh sửa các chủ đề, tài liệu, hình ảnh và video đào tạo.</p>
         </div>
         <button 
           onClick={handleAddNewClick}
@@ -288,6 +288,21 @@ const TopicManagement: React.FC = () => {
                   ) : (
                     <div className="flex items-center justify-center gap-2 w-full py-2 bg-gray-50 text-gray-400 rounded-lg text-sm font-medium border border-dashed border-gray-200 cursor-default">
                        <Video size={16} /> Không có Video
+                    </div>
+                  )}
+
+                  {topic.image_file ? (
+                    <a 
+                      href={topic.image_file} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors"
+                    >
+                      <ImageIcon size={16} /> Xem Hình ảnh
+                    </a>
+                  ) : (
+                    <div className="flex items-center justify-center gap-2 w-full py-2 bg-gray-50 text-gray-400 rounded-lg text-sm font-medium border border-dashed border-gray-200 cursor-default">
+                       <ImageIcon size={16} /> Không có Hình ảnh
                     </div>
                   )}
                 </div>
@@ -437,6 +452,30 @@ const TopicManagement: React.FC = () => {
                     onChange={(e) => handleFileChange(e, 'videoFile')}
                 />
                 {newFiles.videoFile && <p className="text-xs text-green-600 mt-1 pl-2 font-bold">✓ Đã chọn video mới</p>}
+              </div>
+
+              {/* Image File (New) */}
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                <label className="block text-sm font-bold text-purple-800 mb-1 flex items-center gap-2">
+                    <ImageIcon size={16}/> Hình ảnh học liệu
+                </label>
+                
+                {/* Existing Image Indicator */}
+                {editingTopic && editingTopic.image_file && !newFiles.imageFile && (
+                    <div className="flex items-center gap-2 mb-3 text-xs text-purple-700 bg-white p-2 rounded border border-purple-200">
+                        <ImageIcon size={14}/> 
+                        <a href={editingTopic.image_file} target="_blank" className="underline truncate flex-1">Hình ảnh hiện tại (Click để xem)</a>
+                    </div>
+                )}
+
+                <input 
+                    ref={imageInputRef}
+                    type="file" 
+                    accept="image/*"
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-purple-100 file:text-purple-700 hover:file:bg-purple-200"
+                    onChange={(e) => handleFileChange(e, 'imageFile')}
+                />
+                {newFiles.imageFile && <p className="text-xs text-green-600 mt-1 pl-2 font-bold">✓ Đã chọn hình ảnh mới</p>}
               </div>
 
               {/* Actions */}
