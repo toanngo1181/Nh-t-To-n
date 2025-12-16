@@ -155,9 +155,9 @@ const UserManager: React.FC<UserManagerProps> = ({ currentUserRole, users, onAdd
   });
 
   const filteredUsers = visibleUsers.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.username.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.username || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

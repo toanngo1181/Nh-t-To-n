@@ -46,8 +46,8 @@ const ClassManager: React.FC<ClassManagerProps> = ({ users, courses, activityLog
   // 1. Filter Learners
   const learners = useMemo(() => {
     return users.filter(u => u.role === Role.LEARNER && (
-        u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        u.username.toLowerCase().includes(searchTerm.toLowerCase())
+        (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (u.username || '').toLowerCase().includes(searchTerm.toLowerCase())
     ));
   }, [users, searchTerm]);
 

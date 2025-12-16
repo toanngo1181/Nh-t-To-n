@@ -239,7 +239,7 @@ const QuestionBank: React.FC<QuestionBankProps> = ({ questions, courses = [], on
 
   const filteredQuestions = questions.filter(q => 
     (q.topicName || '').toLowerCase().includes(filterTopic.toLowerCase()) || 
-    q.text.toLowerCase().includes(filterTopic.toLowerCase())
+    (q.text || '').toLowerCase().includes(filterTopic.toLowerCase())
   );
 
   return (
