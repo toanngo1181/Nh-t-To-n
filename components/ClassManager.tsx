@@ -1,42 +1,12 @@
 import React, { useContext, useState, useMemo } from 'react';
-// We need to import the context from App.tsx in a real scenario, but since App.tsx isn't exporting it easily without circular deps in this single file structure, 
-// we assume this file is imported into App.tsx and we can access the context if we were using a proper module system.
-// HOWEVER, given the limitation, we will assume `AppContext` is available globally or we use the props pattern in App.tsx. 
-// Actually, App.tsx routes to this component. 
-// I will replicate the Context usage pattern seen in other components by assuming AppContext is exported or I'll use a hacky way? 
-// No, the correct way in this "single project file" simulation is to import it. 
-// Since I can't modify App.tsx to export AppContext in the same XML block easily (it's already done), 
-// I will assume `AppContext` is available to import from `../App`. 
-// Wait, I cannot import from `../App` if `App.tsx` is the entry point. 
-// In the `App.tsx` file content provided, `AppContext` is NOT exported. 
-// I MUST export `AppContext` in `App.tsx`. I checked my previous `App.tsx` change, I didn't add `export` to `AppContext`. 
-// I will fix `App.tsx` to `export const AppContext` in the previous block.
-// Let's assume I did that or I will use a trick.
-// Actually, I can just define the component here and `App.tsx` imports it. 
-// To make `useContext` work, I need the Context object.
-// I will rely on `App.tsx` passing props or I will edit `App.tsx` to export `AppContext`.
-// *Self-correction*: I will edit `App.tsx` to `export const AppContext`.
-
 import { User, Course, ActivityLog, ActivityType, Role } from '../types';
 import { Search, User as UserIcon, BookOpen, Clock, FileText, CheckCircle, XCircle, AlertTriangle, Eye, ChevronRight, School, Download } from 'lucide-react';
-// Mock import since we can't really import from App in this virtual env easily without the file existing perfectly.
-// I will assume the user puts `export const AppContext = ...` in App.tsx.
-// For now, I will use `any` for context to avoid TS errors in this snippet, but logically it works.
-import App from '../App'; 
-
-// IMPORTANT: In a real app, import { AppContext } from '../App';
-// Here we will use a workaround or assume the user fixes the export.
-// Actually, I will make `ClassManager` accept props `users`, `courses`, `activityLogs` to be safe and clean.
-// I will update `App.tsx` to pass these props.
 
 interface ClassManagerProps {
   users: User[];
   courses: Course[];
   activityLogs: ActivityLog[];
 }
-
-// But `App.tsx` uses `Route` which renders component. I can't pass props easily unless I use an inline wrapper.
-// So: `element={<ClassManager users={users} ... />}`
 
 const ClassManager: React.FC<ClassManagerProps> = ({ users, courses, activityLogs }) => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
