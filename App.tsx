@@ -105,7 +105,7 @@ const LoginScreen = ({ onLogin }: { onLogin: (u: string, p: string) => void }) =
         <div className="bg-brand-blue p-8 flex flex-col justify-center items-center text-center md:w-2/5">
           <img src={appLogo} alt="VinhTan Logo" className="w-48 mb-6 object-contain drop-shadow-md" />
           <h2 className="text-xl text-blue-100 font-light">E-Learning Platform</h2>
-          <p className="text-blue-200 text-sm mt-8 opacity-80">Hệ thống đào tạo và quản lý chất lượng chăn nuôi hàng đầu.</p>
+          <p className="text-blue-200 text-sm mt-8 opacity-80">Hệ thống đào tạo trực tuyến về quản lý chất lượng chăn nuôi hàng đầu.</p>
         </div>
         
         {/* Right Side: Form */}
