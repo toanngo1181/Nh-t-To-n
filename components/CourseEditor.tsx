@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, Topic, Lesson, ContentType } from '../types';
-import { Plus, Trash2, Save, Video, FileText, LayoutList, Upload, Link as LinkIcon, CheckCircle, X, Clock, BookOpen, AlertTriangle, FileUp, Film, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Save, Video, FileText, LayoutList, Upload, Link as LinkIcon, CheckCircle, X, Clock, BookOpen, AlertTriangle, FileUp, Film, ChevronUp, Image as ImageIcon } from 'lucide-react';
 
 interface CourseEditorProps {
   initialData?: Course | null;
@@ -97,7 +97,7 @@ const MediaInput = ({
               className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none text-sm"
               value={value}
               onChange={e => onChange(e.target.value)}
-              placeholder="https://example.com/video.mp4"
+              placeholder="https://example.com/file..."
             />
           ) : (
             <div 
@@ -122,7 +122,7 @@ const MediaInput = ({
                     <>
                         <Upload size={24} className="text-gray-400 group-hover:text-brand-blue transition-colors"/> 
                         <span className="text-sm text-gray-600 font-medium">Nhấn để tải file lên</span>
-                        <span className="text-xs text-gray-400">Hỗ trợ: {accept === 'video/*' ? 'MP4, WebM' : 'PDF'}</span>
+                        <span className="text-xs text-gray-400">Hỗ trợ: {accept === 'video/*' ? 'MP4, WebM' : (accept === 'image/*' ? 'JPG, PNG' : 'PDF')}</span>
                     </>
                  )}
                </div>
@@ -232,6 +232,8 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
           updateLesson(topicIndex, lessonIndex, 'duration', duration);
       } else if (type === ContentType.PDF) {
           updateLesson(topicIndex, lessonIndex, 'duration', '1 trang');
+      } else if (type === ContentType.IMAGE) {
+          updateLesson(topicIndex, lessonIndex, 'duration', 'Hình ảnh');
       }
   };
 
@@ -252,6 +254,8 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
         let duration = "00:00";
         if (type === ContentType.VIDEO) {
             duration = await getVideoDuration(file);
+        } else if (type === ContentType.IMAGE) {
+            duration = "Hình ảnh";
         } else {
             duration = "1 trang";
         }
@@ -302,6 +306,10 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
               if (lesson.level >= 1 && lesson.level <= 5 && lesson.url) {
                   if (lesson.type === ContentType.VIDEO) stats[lesson.level].hasVideo = true;
                   if (lesson.type === ContentType.PDF) stats[lesson.level].hasPDF = true;
+                  // Note: Images are considered supplementary content and don't fulfill the "Required PDF/Video" check, 
+                  // or you can modify this if Image replaces PDF requirement.
+                  // For now, let's treat Image as an alternative to PDF for the requirement check to be flexible.
+                  if (lesson.type === ContentType.IMAGE) stats[lesson.level].hasPDF = true; 
               }
           });
       });
@@ -320,7 +328,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
     // WARNING ONLY: Allows saving even if content is missing, but asks for confirmation
     const missingContent = Object.entries(levelStats).filter(([lvl, stat]) => !stat.hasVideo || !stat.hasPDF);
     if (missingContent.length > 0) {
-        const confirmMsg = `CẢNH BÁO: Khóa học chưa hoàn thiện!\n\nCác Level sau chưa đủ điều kiện (Thiếu Video hoặc PDF):\nLevel: ${missingContent.map(m => m[0]).join(', ')}\n\nNếu lưu bây giờ, nội dung này có thể chưa sẵn sàng cho học viên. Bạn có chắc chắn muốn lưu không?`;
+        const confirmMsg = `CẢNH BÁO: Khóa học chưa hoàn thiện!\n\nCác Level sau chưa đủ điều kiện (Thiếu Video hoặc Tài liệu đọc):\nLevel: ${missingContent.map(m => m[0]).join(', ')}\n\nNếu lưu bây giờ, nội dung này có thể chưa sẵn sàng cho học viên. Bạn có chắc chắn muốn lưu không?`;
         
         // If user selects Cancel, stop execution. If OK, proceed to onSave.
         if (!window.confirm(confirmMsg)) {
@@ -346,7 +354,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
             {initialData ? 'Chỉnh sửa khóa học' : 'Tạo khóa học mới'}
             </h2>
             <p className="text-xs text-gray-500 mt-1">
-                Yêu cầu: Mỗi Level cần có ít nhất 1 Video và 1 PDF.
+                Yêu cầu: Mỗi Level cần có ít nhất 1 Video và 1 Tài liệu (PDF/Ảnh).
             </p>
         </div>
         <div className="flex gap-3">
@@ -446,8 +454,8 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                       <div key={lesson.id} className="border border-gray-100 rounded bg-gray-50 hover:border-gray-300 transition-colors">
                         <div className="flex items-center gap-2 p-2">
                           {/* Type Icon */}
-                          <div className={`p-1.5 rounded ${lesson.type === ContentType.VIDEO ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>
-                              {lesson.type === ContentType.VIDEO ? <Film size={14}/> : <FileText size={14}/>}
+                          <div className={`p-1.5 rounded ${lesson.type === ContentType.VIDEO ? 'bg-blue-100 text-blue-600' : (lesson.type === ContentType.IMAGE ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600')}`}>
+                              {lesson.type === ContentType.VIDEO ? <Film size={14}/> : (lesson.type === ContentType.IMAGE ? <ImageIcon size={14}/> : <FileText size={14}/>)}
                           </div>
                           
                           {/* Title */}
@@ -503,11 +511,11 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                             <div className="flex gap-6 items-start">
                                 <div className="flex-1">
                                     <MediaInput 
-                                        label={lesson.type === ContentType.VIDEO ? "File Video (MP4/WebM)" : "File Tài liệu (PDF)"}
+                                        label={lesson.type === ContentType.VIDEO ? "File Video (MP4/WebM)" : (lesson.type === ContentType.IMAGE ? "File Hình ảnh (JPG/PNG)" : "File Tài liệu (PDF)")}
                                         value={lesson.url || ''}
                                         onChange={(val) => updateLesson(tIdx, lIdx, 'url', val)}
                                         onFileSelect={(file) => handleLessonFileUpload(tIdx, lIdx, file)}
-                                        accept={lesson.type === ContentType.VIDEO ? "video/*" : "application/pdf"}
+                                        accept={lesson.type === ContentType.VIDEO ? "video/*" : (lesson.type === ContentType.IMAGE ? "image/*" : "application/pdf")}
                                     />
                                 </div>
                                 <div className="w-1/3 space-y-4">
@@ -520,6 +528,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                                         >
                                             <option value={ContentType.VIDEO}>Video bài giảng</option>
                                             <option value={ContentType.PDF}>Tài liệu đọc (PDF)</option>
+                                            <option value={ContentType.IMAGE}>Hình ảnh minh họa</option>
                                         </select>
                                     </div>
                                     
@@ -566,13 +575,13 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                             onClick={() => videoInputRefs.current[tIdx]?.click()}
                             className="flex-1 py-2 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center justify-center gap-2 border border-blue-200 transition-colors"
                         >
-                            <Film size={14} /> + Upload Video (Nhiều file)
+                            <Film size={14} /> + Upload Video
                         </button>
                         <button 
                             onClick={() => pdfInputRefs.current[tIdx]?.click()}
                             className="flex-1 py-2 bg-orange-50 text-orange-700 rounded-lg text-xs font-bold hover:bg-orange-100 flex items-center justify-center gap-2 border border-orange-200 transition-colors"
                         >
-                            <FileUp size={14} /> + Upload PDF (Nhiều file)
+                            <FileUp size={14} /> + Upload PDF
                         </button>
                         <button 
                             onClick={() => addEmptyLesson(tIdx)}
@@ -589,7 +598,7 @@ const CourseEditor: React.FC<CourseEditorProps> = ({ initialData, onSave, onCanc
                 <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50">
                   <LayoutList size={48} className="mx-auto mb-2 opacity-20"/>
                   <p>Chưa có nội dung nào.</p>
-                  <p className="text-sm">Hãy thêm chương học đầu tiên để bắt đầu tải lên video và tài liệu.</p>
+                  <p className="text-sm">Hãy thêm chương học đầu tiên để bắt đầu tải lên video, hình ảnh và tài liệu.</p>
                 </div>
               )}
             </div>

@@ -301,6 +301,35 @@ const LessonView = () => {
 
     const [pdfUrl, setPdfUrl] = useState<string>('');
 
+    // --- HELPER: Convert Base64 to Blob manually to avoid network errors ---
+    const b64toBlob = (b64Data: string, contentType = 'application/pdf', sliceSize = 512) => {
+        try {
+            // Check if input is a data URI, remove prefix
+            const parts = b64Data.split(',');
+            const base64 = parts.length > 1 ? parts[1] : parts[0];
+            
+            const byteCharacters = atob(base64);
+            const byteArrays = [];
+
+            for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                const slice = byteCharacters.slice(offset, offset + sliceSize);
+
+                const byteNumbers = new Array(slice.length);
+                for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                }
+
+                const byteArray = new Uint8Array(byteNumbers);
+                byteArrays.push(byteArray);
+            }
+
+            return new Blob(byteArrays, {type: contentType});
+        } catch (e) {
+            console.error("Base64 conversion error", e);
+            return null;
+        }
+    };
+
     useEffect(() => {
         if (lesson && user && courseId) {
             logActivity({
@@ -312,17 +341,18 @@ const LessonView = () => {
             });
         }
 
-        // Handle PDF Base64 to Blob URL for reliable rendering
+        // --- PDF HANDLING LOGIC ---
         if (lesson?.type === ContentType.PDF && lesson.url) {
             if (lesson.url.startsWith('data:')) {
-                // Convert Base64 to Blob
-                fetch(lesson.url)
-                    .then(res => res.blob())
-                    .then(blob => {
-                        const objectUrl = URL.createObjectURL(blob);
-                        setPdfUrl(objectUrl);
-                    })
-                    .catch(() => setPdfUrl(lesson.url || ''));
+                // Manually convert to Blob to avoid network request limits
+                const blob = b64toBlob(lesson.url);
+                if (blob) {
+                    const objectUrl = URL.createObjectURL(blob);
+                    setPdfUrl(objectUrl);
+                } else {
+                    // Fallback if conversion fails
+                    setPdfUrl(lesson.url);
+                }
             } else {
                 setPdfUrl(lesson.url);
             }
@@ -372,7 +402,6 @@ const LessonView = () => {
                 {lesson.type === ContentType.VIDEO ? (
                      lesson.url ? (
                          isRawFile(lesson.url) ? (
-                             // FIX: Use video tag for uploaded/raw files
                              <video 
                                 controls 
                                 controlsList="nodownload"
@@ -382,7 +411,6 @@ const LessonView = () => {
                                  Trình duyệt của bạn không hỗ trợ thẻ video.
                              </video>
                          ) : (
-                             // Use iframe for YouTube/Embeds
                              <iframe 
                                 src={lesson.url.includes("watch?v=") ? lesson.url.replace("watch?v=", "embed/") : lesson.url} 
                                 className="w-full h-full" 
@@ -396,15 +424,31 @@ const LessonView = () => {
                              <p>Video đang được cập nhật</p>
                          </div>
                      )
+                ) : lesson.type === ContentType.IMAGE ? (
+                     // --- IMAGE RENDERER ---
+                     lesson.url ? (
+                         <div className="w-full h-full bg-black flex items-center justify-center overflow-auto">
+                            <img 
+                                src={lesson.url} 
+                                alt={lesson.title} 
+                                className="max-w-full max-h-full object-contain"
+                            />
+                         </div>
+                     ) : (
+                         <div className="text-center text-gray-500">
+                             <ImageIcon size={64} className="mx-auto mb-4 opacity-50"/>
+                             <p>Hình ảnh đang được cập nhật</p>
+                         </div>
+                     )
                 ) : (
+                    // --- PDF RENDERER (Updated) ---
                     <div className="bg-white w-full h-full overflow-hidden relative flex flex-col">
                         {lesson.url ? (
                             <>
-                                {/* FIX: Use embed with Blob URL for better PDF support */}
-                                <embed 
+                                <iframe 
                                     src={pdfUrl || lesson.url} 
-                                    type="application/pdf"
                                     className="w-full flex-1 border-none bg-gray-100"
+                                    title="PDF Viewer"
                                 />
                                 {/* Fallback Bar */}
                                 <div className="bg-gray-50 border-t border-gray-200 p-2 flex justify-center">
@@ -643,7 +687,7 @@ const CourseDetail = () => {
                                         className={`p-3 border rounded flex justify-between items-center ${isLocked ? 'bg-gray-50 cursor-not-allowed text-gray-400' : 'hover:bg-blue-50 cursor-pointer'}`}
                                     >
                                         <div className="flex items-center gap-2">
-                                            {lesson.type === ContentType.VIDEO ? <Video size={16}/> : <FileText size={16}/>}
+                                            {lesson.type === ContentType.VIDEO ? <Video size={16}/> : (lesson.type === ContentType.IMAGE ? <ImageIcon size={16}/> : <FileText size={16}/>)}
                                             {lesson.title}
                                         </div>
                                         {completedLessons.includes(lesson.id) && <CheckCircle size={16} className="text-green-500"/>}
