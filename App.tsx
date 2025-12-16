@@ -510,6 +510,169 @@ const LessonView = () => {
     );
 };
 
+const GlobalSettings = () => {
+  const { appLogo, setAppLogo, certificateConfig, setCertificateConfig } = React.useContext(AppContext);
+  const [localConfig, setLocalConfig] = useState<CertificateConfig>(certificateConfig);
+  const [previewLogo, setPreviewLogo] = useState<string>(appLogo);
+  
+  // Update local state when context changes (initial load)
+  useEffect(() => {
+      setLocalConfig(certificateConfig);
+      setPreviewLogo(appLogo);
+  }, [certificateConfig, appLogo]);
+
+  const toBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const base64 = await toBase64(file);
+          setPreviewLogo(base64);
+      }
+  };
+
+  const handleSigChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const base64 = await toBase64(file);
+          setLocalConfig(prev => ({ ...prev, signatureImage: base64 }));
+      }
+  };
+  
+  const handleBgChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const base64 = await toBase64(file);
+          setLocalConfig(prev => ({ ...prev, backgroundImage: base64 }));
+      }
+  };
+
+  const handleSave = () => {
+      setAppLogo(previewLogo);
+      setCertificateConfig(localConfig);
+      alert("Đã lưu cấu hình hệ thống thành công!");
+  };
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+        <h1 className="text-2xl font-bold text-gray-800 mb-6">Cài đặt Hệ thống</h1>
+        
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-8">
+            {/* 1. BRANDING */}
+            <div>
+                <h3 className="text-lg font-bold text-gray-700 border-b pb-2 mb-4 flex items-center gap-2">
+                    <Settings size={20}/> Thương hiệu & Logo
+                </h3>
+                <div className="flex items-start gap-8">
+                    <div className="flex flex-col items-center gap-2">
+                        <div className="w-32 h-32 border border-gray-200 rounded-lg flex items-center justify-center bg-gray-50 p-2">
+                            <img src={previewLogo} alt="Logo Preview" className="max-w-full max-h-full object-contain"/>
+                        </div>
+                        <span className="text-xs text-gray-500">Logo hiện tại</span>
+                    </div>
+                    <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Thay đổi Logo ứng dụng</label>
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handleLogoChange}
+                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors"
+                        />
+                        <p className="text-xs text-gray-400 mt-2">
+                            Định dạng hỗ trợ: PNG, JPG, SVG. Kích thước khuyên dùng: 200x50px (Nền trong suốt).
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* 2. CERTIFICATE CONFIG */}
+            <div>
+                <h3 className="text-lg font-bold text-gray-700 border-b pb-2 mb-4 flex items-center gap-2">
+                    <Award size={20}/> Cấu hình Chứng chỉ
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tên người ký (Issuer Name)</label>
+                        <input 
+                            type="text" 
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                            value={localConfig.issuerName}
+                            onChange={(e) => setLocalConfig({...localConfig, issuerName: e.target.value})}
+                            placeholder="VD: TS. Phạm Văn B"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Chức danh (Issuer Title)</label>
+                        <input 
+                            type="text" 
+                            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none"
+                            value={localConfig.issuerTitle}
+                            onChange={(e) => setLocalConfig({...localConfig, issuerTitle: e.target.value})}
+                            placeholder="VD: GIÁM ĐỐC ĐÀO TẠO"
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    {/* Signature */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Chữ ký số (Hình ảnh)</label>
+                        <div className="flex items-center gap-4">
+                            <div className="w-24 h-16 border border-dashed border-gray-300 rounded bg-gray-50 flex items-center justify-center">
+                                {localConfig.signatureImage ? (
+                                    <img src={localConfig.signatureImage} className="max-w-full max-h-full object-contain mix-blend-multiply"/>
+                                ) : <span className="text-[10px] text-gray-400">Chưa có</span>}
+                            </div>
+                            <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleSigChange}
+                                className="text-xs text-gray-500"
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1">Nên dùng ảnh chữ ký tách nền (PNG transparent).</p>
+                    </div>
+
+                    {/* Background */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Hình nền chứng chỉ (Tùy chọn)</label>
+                        <div className="flex items-center gap-4">
+                            <div className="w-24 h-16 border border-gray-300 rounded bg-gray-50 flex items-center justify-center overflow-hidden">
+                                {localConfig.backgroundImage ? (
+                                    <img src={localConfig.backgroundImage} className="w-full h-full object-cover"/>
+                                ) : <span className="text-[10px] text-gray-400">Mặc định</span>}
+                            </div>
+                            <input 
+                                type="file" 
+                                accept="image/*"
+                                onChange={handleBgChange}
+                                className="text-xs text-gray-500"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100 flex justify-end">
+                <button 
+                    onClick={handleSave}
+                    className="px-6 py-2 bg-brand-blue text-white rounded-lg shadow-md hover:bg-blue-700 font-bold flex items-center gap-2"
+                >
+                    <Save size={18}/> Lưu Cài Đặt
+                </button>
+            </div>
+        </div>
+    </div>
+  );
+};
+
 const LearnerDashboard = () => {
     const { user, myCourses, completedLessons, certificates } = React.useContext(AppContext);
     const navigate = useNavigate();
@@ -806,6 +969,10 @@ const AdminDashboard = () => {
             />
           </div>
       );
+  }
+
+  if (location.pathname === '/admin/settings') {
+      return <GlobalSettings />;
   }
 
   if (location.pathname === '/admin/courses') {
