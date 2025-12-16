@@ -118,3 +118,7 @@ export interface CertificateConfig {
   issuerTitle: string;     // Chức vụ (VD: GIÁM ĐỐC ĐÀO TẠO)
   signatureImage: string;  // URL hoặc Base64 chữ ký
 }
+
+export interface QuizTimeConfig {
+    [level: number]: number; // Level (1-5) -> Minutes per question
+}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { Question, QuizResult, QuestionType, ActivityType } from '../types';
-import { Clock, CheckCircle, XCircle, AlertTriangle, HelpCircle, X, Check, BookOpen, ArrowLeft, ArrowRight, MinusCircle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, AlertTriangle, HelpCircle, X, Check, BookOpen, ArrowLeft, ArrowRight, MinusCircle, SkipForward } from 'lucide-react';
 
 interface QuizModalProps {
   isOpen: boolean;
@@ -9,16 +9,19 @@ interface QuizModalProps {
   courseTitle: string;
   questions: Question[]; 
   onAttempt?: (result: QuizResult) => void;
+  timePerQuestion?: number; // Time in minutes per question
 }
 
 const PASSING_SCORE = 80; // Percent
-const QUIZ_DURATION = 15 * 60; // 15 minutes in seconds
 const MAX_POINT_PER_QUESTION = 20; // Điểm tối đa cho mỗi câu để khớp với yêu cầu 20 điểm
 
-const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, courseTitle, questions, onAttempt }) => {
+const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, courseTitle, questions, onAttempt, timePerQuestion = 1 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<(string)[]>([]); // Store selected option (A,B,C,D) or text
-  const [timeLeft, setTimeLeft] = useState(QUIZ_DURATION);
+  
+  // Timer state for CURRENT QUESTION
+  const [timeLeft, setTimeLeft] = useState(timePerQuestion * 60);
+  
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [score, setScore] = useState(0);
   
@@ -33,17 +36,26 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
         setCurrentQuestionIndex(0);
         setIsSubmitted(false);
         setScore(0);
-        setTimeLeft(QUIZ_DURATION);
+        setTimeLeft(timePerQuestion * 60); // Reset time for first question
     }
   }, [isOpen]); 
 
+  // Reset timer when question changes
+  useEffect(() => {
+      if (!isSubmitted && isOpen) {
+          setTimeLeft(timePerQuestion * 60);
+      }
+  }, [currentQuestionIndex, timePerQuestion]);
+
+  // Timer Logic
   useEffect(() => {
     if (isOpen && !isSubmitted && questions.length > 0) {
       const timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            handleSubmit();
+            // Time ran out for this question
+            handleTimeOut();
             return 0;
           }
           return prev - 1;
@@ -51,7 +63,29 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [isOpen, isSubmitted, questions.length]);
+  }, [isOpen, isSubmitted, currentQuestionIndex, questions.length]);
+
+  const handleTimeOut = () => {
+      // Logic: Mark current question as skipped (empty answer), 0 points.
+      // Move to next question automatically.
+      
+      const newAnswers = [...answers];
+      // Keep existing answer if user typed something but didn't click next? 
+      // Requirement says: "hết thời gian vẫn chưa chọn đáp án thì mặc nhiên câu hỏi đó bị bỏ qua và 0 điểm"
+      // If user selected something but didn't click next, strictly speaking they haven't "chosen/submitted".
+      // But for better UX, if they selected an option, we could save it.
+      // However, to strictly follow "bị bỏ qua" (skipped), we might treat it as empty.
+      // Let's assume: If answers[currentQuestionIndex] is empty, it stays empty.
+      
+      setAnswers(newAnswers); // Update state (conceptually)
+
+      // Move to next or Submit
+      if (currentQuestionIndex < questions.length - 1) {
+          setCurrentQuestionIndex(prev => prev + 1);
+      } else {
+          handleSubmit(newAnswers); // Submit with current state of answers
+      }
+  };
 
   const handleSelectOption = (optionChar: string) => {
     if (isSubmitted) return;
@@ -98,15 +132,17 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
       return 0; // Không chính xác
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (finalAnswers = answers) => {
     let totalPointsEarned = 0;
     const calculatedScores: number[] = [];
 
     questions.forEach((q, idx) => {
         let points = 0;
-        const userAns = answers[idx];
+        const userAns = finalAnswers[idx];
 
-        if (q.type === QuestionType.MULTIPLE_CHOICE) {
+        if (!userAns) {
+            points = 0; // Unanswered/Skipped
+        } else if (q.type === QuestionType.MULTIPLE_CHOICE) {
             // Trắc nghiệm: Đúng 20, Sai 0
             if (userAns === q.correctAnswer) {
                 points = MAX_POINT_PER_QUESTION;
@@ -185,9 +221,12 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
           </div>
           
           {!isSubmitted && (
-            <div className={`flex items-center gap-2 font-mono text-xl mr-8 ${timeLeft < 60 ? 'text-red-400 animate-pulse' : ''}`}>
-                <Clock size={20} />
-                {formatTime(timeLeft)}
+            <div className={`flex flex-col items-end mr-8`}>
+                <div className={`flex items-center gap-2 font-mono text-xl font-bold ${timeLeft < 10 ? 'text-red-400 animate-pulse' : ''}`}>
+                    <Clock size={20} />
+                    {formatTime(timeLeft)}
+                </div>
+                <p className="text-[10px] text-gray-400">Thời gian cho câu này</p>
             </div>
           )}
 
@@ -318,6 +357,8 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
                           statusIcon = <X size={18} className="text-red-500"/>;
                           statusText = "Chưa chính xác (0 điểm)";
                       }
+                      
+                      const isSkipped = !userAnswer;
 
                       const borderClass = earnedPoints === 20 ? 'border-l-green-500' : (earnedPoints === 10 ? 'border-l-yellow-500' : 'border-l-red-500');
                       const bgBadgeClass = earnedPoints === 20 ? 'bg-green-500' : (earnedPoints === 10 ? 'bg-yellow-500' : 'bg-red-500');
@@ -331,6 +372,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
                                     </span>
                                     <div className="flex-1">
                                         <h4 className="font-medium text-gray-800 text-lg">{q.text}</h4>
+                                        {isSkipped && <span className="text-xs text-red-500 italic">(Đã bỏ qua / Hết giờ)</span>}
                                     </div>
                                   </div>
                                   <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded bg-${statusColor}-50 text-${statusColor}-700 border border-${statusColor}-200 whitespace-nowrap`}>
@@ -367,7 +409,7 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
                                   <div className="pl-11 mb-4 space-y-2">
                                       <div className="p-3 bg-gray-50 border border-gray-200 rounded">
                                           <p className="text-xs text-gray-500 mb-1">Câu trả lời của bạn:</p>
-                                          <p className="text-gray-800 font-medium">{userAnswer || "(Bỏ trống)"}</p>
+                                          <p className="text-gray-800 font-medium">{userAnswer || "(Bỏ trống / Hết giờ)"}</p>
                                       </div>
                                       <div className="p-3 bg-green-50 border border-green-200 rounded">
                                           <p className="text-xs text-green-600 mb-1">Đáp án mẫu:</p>
@@ -400,28 +442,28 @@ const QuizModal: React.FC<QuizModalProps> = ({ isOpen, onClose, onComplete, cour
         <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between">
           {!isSubmitted ? (
             <>
-              {/* BACK BUTTON: Hidden if on the first question */}
+              {/* BACK BUTTON: Disabled in new "Auto Next" mode to prevent cheating time, or handled carefully? 
+                  With per-question timer, "Back" is usually disabled because the previous question's time is gone.
+                  The prompt implies a forward flow "chuyển sang câu hỏi tiếp theo". 
+                  Let's DISABLE Back for this mode.
+              */}
               <div className="w-24">
-                {currentQuestionIndex > 0 && (
-                    <button
-                        onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
-                        className="px-4 py-2 rounded text-gray-600 hover:bg-gray-200"
-                    >
-                        Quay lại
-                    </button>
-                )}
+                <p className="text-xs text-gray-400 italic">Không thể quay lại</p>
               </div>
               
               {currentQuestionIndex < questions.length - 1 ? (
                 <button
-                  onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}
-                  className="px-6 py-2 bg-brand-blue text-white rounded shadow hover:bg-blue-700 transition-colors"
+                  onClick={() => {
+                      // Manual Next also resets time via useEffect dependency on index
+                      setCurrentQuestionIndex(currentQuestionIndex + 1);
+                  }}
+                  className="px-6 py-2 bg-brand-blue text-white rounded shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
-                  Câu tiếp theo
+                  Câu tiếp theo <SkipForward size={16}/>
                 </button>
               ) : (
                 <button
-                  onClick={handleSubmit}
+                  onClick={() => handleSubmit()}
                   className="px-6 py-2 bg-brand-success text-white rounded shadow hover:bg-green-700 transition-colors"
                 >
                   Nộp bài

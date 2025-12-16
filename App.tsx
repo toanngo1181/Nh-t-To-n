@@ -6,7 +6,7 @@ import {
   Award, BarChart2, Video, PlusCircle, Settings, Menu, Users, HelpCircle, Shield, Lock, Star, PlayCircle, Trash2, Edit, Download, TrendingUp, Clock, File, ExternalLink, ArrowRight, Upload, Image as ImageIcon, Save, RefreshCw, Globe, School, Eye, Loader2
 } from 'lucide-react';
 import { MOCK_USERS, MOCK_COURSES, SAMPLE_QUESTIONS } from './constants';
-import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment, ActivityLog, ActivityType, CertificateConfig } from './types';
+import { Course, Role, Lesson, ContentType, QuizResult, CertificateData, Question, User, Topic, Enrollment, ActivityLog, ActivityType, CertificateConfig, QuizTimeConfig } from './types';
 import CourseCard from './components/CourseCard';
 import QuizModal from './components/QuizModal';
 import Certificate from './components/Certificate';
@@ -46,6 +46,8 @@ export const AppContext = React.createContext<{
   logActivity: (log: Omit<ActivityLog, 'id' | 'timestamp'>) => void;
   certificateConfig: CertificateConfig;
   setCertificateConfig: (c: CertificateConfig) => void;
+  quizTimeConfig: QuizTimeConfig;
+  setQuizTimeConfig: (c: QuizTimeConfig) => void;
 }>({
   user: null,
   setUser: () => {},
@@ -75,7 +77,9 @@ export const AppContext = React.createContext<{
     issuerTitle: 'GIÁM ĐỐC ĐÀO TẠO',
     signatureImage: ''
   },
-  setCertificateConfig: () => {}
+  setCertificateConfig: () => {},
+  quizTimeConfig: { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 },
+  setQuizTimeConfig: () => {}
 });
 
 // --- Auth Component ---
@@ -332,9 +336,10 @@ const SettingsMediaInput = ({
 };
 
 const SystemSettings = () => {
-  const { appLogo, setAppLogo, language, setLanguage, certificateConfig, setCertificateConfig } = React.useContext(AppContext);
+  const { appLogo, setAppLogo, language, setLanguage, certificateConfig, setCertificateConfig, quizTimeConfig, setQuizTimeConfig } = React.useContext(AppContext);
   const [localLogo, setLocalLogo] = useState(appLogo);
   const [localCertConfig, setLocalCertConfig] = useState(certificateConfig);
+  const [localQuizTime, setLocalQuizTime] = useState(quizTimeConfig);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -363,6 +368,17 @@ const SystemSettings = () => {
                 
                 setLocalCertConfig(newCertConfig);
                 setCertificateConfig(newCertConfig); // Sync Context
+
+                // Map Quiz Times (updated to match new API fields: time_level_x)
+                const newQuizTime = {
+                    1: Number(data.time_level_1) || 1,
+                    2: Number(data.time_level_2) || 1,
+                    3: Number(data.time_level_3) || 1,
+                    4: Number(data.time_level_4) || 1,
+                    5: Number(data.time_level_5) || 1
+                };
+                setLocalQuizTime(newQuizTime);
+                setQuizTimeConfig(newQuizTime);
             }
         } catch (error) {
             console.error("Failed to fetch settings:", error);
@@ -373,7 +389,7 @@ const SystemSettings = () => {
     };
 
     fetchSettings();
-  }, [setAppLogo, setCertificateConfig]);
+  }, [setAppLogo, setCertificateConfig, setQuizTimeConfig]);
 
   const handleSave = async () => {
       setIsSaving(true);
@@ -384,7 +400,13 @@ const SystemSettings = () => {
           cert_bg: localCertConfig.backgroundImage,
           cert_signer: localCertConfig.issuerName,
           cert_role: localCertConfig.issuerTitle,
-          signature_url: localCertConfig.signatureImage
+          signature_url: localCertConfig.signatureImage,
+          // Updated payload keys
+          time_level_1: localQuizTime[1],
+          time_level_2: localQuizTime[2],
+          time_level_3: localQuizTime[3],
+          time_level_4: localQuizTime[4],
+          time_level_5: localQuizTime[5]
       };
 
       try {
@@ -398,6 +420,7 @@ const SystemSettings = () => {
           // Update Context (Optimistic UI)
           setAppLogo(localLogo);
           setCertificateConfig(localCertConfig);
+          setQuizTimeConfig(localQuizTime);
           
           // Also save to localStorage as backup/cache via Context effects
           alert("Đã lưu cài đặt hệ thống thành công!");
@@ -451,6 +474,34 @@ const SystemSettings = () => {
                         <option value="en">English</option>
                         <option value="km">Khmer</option>
                     </select>
+                </div>
+            </div>
+
+            {/* Quiz Duration Settings */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                 <h3 className="font-bold text-lg text-gray-700 border-b pb-2 flex items-center gap-2">
+                    <Clock size={20}/> Cấu hình thời gian làm bài (Phút/Câu hỏi)
+                </h3>
+                <p className="text-sm text-gray-500 italic">
+                    Thiết lập thời gian đếm ngược cho mỗi câu hỏi trong bài kiểm tra. Nếu hết giờ, hệ thống sẽ tự động bỏ qua câu hỏi đó (0 điểm) và chuyển sang câu tiếp theo.
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {[1, 2, 3, 4, 5].map(level => (
+                        <div key={level}>
+                             <label className="block text-sm font-bold text-gray-700 mb-1">Level {level}</label>
+                             <div className="relative">
+                                <input 
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-blue/20 outline-none text-center"
+                                    value={localQuizTime[level]}
+                                    onChange={(e) => setLocalQuizTime({...localQuizTime, [level]: Number(e.target.value)})}
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">phút</span>
+                             </div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
@@ -817,7 +868,7 @@ const CourseDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo, logActivity, certificateConfig } = React.useContext(AppContext);
+  const { completedLessons, allCourses, allQuestions, role, user, enrollCourse, addCertificate, setUser, setUsers, users, appLogo, logActivity, certificateConfig, quizTimeConfig } = React.useContext(AppContext);
   const course = allCourses.find(c => c.id === id);
 
   const [showQuiz, setShowQuiz] = useState(false);
@@ -925,6 +976,9 @@ const CourseDetail = () => {
   const handleHome = () => {
     setShowCert(false);
   };
+
+  // Get time limit for current level
+  const timeLimit = quizTimeConfig[currentLevel] || 1;
 
   return (
     <div className="bg-gray-50 min-h-[calc(100vh-64px)]">
@@ -1083,6 +1137,7 @@ const CourseDetail = () => {
         questions={relevantQuestions}
         onComplete={handleQuizComplete}
         onAttempt={handleQuizAttempt}
+        timePerQuestion={timeLimit}
       />
 
       {certData && (
@@ -1378,6 +1433,12 @@ const App = () => {
     };
   });
 
+  // Initialize Quiz Time Config
+  const [quizTimeConfig, setQuizTimeConfig] = useState<QuizTimeConfig>(() => {
+      const saved = localStorage.getItem('app_quiz_time_config');
+      return saved ? JSON.parse(saved) : { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1 };
+  });
+
   // FETCH GLOBAL SETTINGS ON MOUNT
   useEffect(() => {
     const fetchGlobalSettings = async () => {
@@ -1393,6 +1454,15 @@ const App = () => {
                     issuerName: data.cert_signer || 'TS. Phạm Văn B',
                     issuerTitle: data.cert_role || 'GIÁM ĐỐC ĐÀO TẠO',
                     signatureImage: data.signature_url || ''
+                });
+
+                // Update: Use correct key names 'time_level_x'
+                setQuizTimeConfig({
+                    1: Number(data.time_level_1) || 1,
+                    2: Number(data.time_level_2) || 1,
+                    3: Number(data.time_level_3) || 1,
+                    4: Number(data.time_level_4) || 1,
+                    5: Number(data.time_level_5) || 1
                 });
             }
         } catch (error) {
@@ -1426,6 +1496,11 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('app_certificate_config', JSON.stringify(certificateConfig));
   }, [certificateConfig]);
+
+  // Persist quiz time config
+  useEffect(() => {
+    localStorage.setItem('app_quiz_time_config', JSON.stringify(quizTimeConfig));
+  }, [quizTimeConfig]);
 
   // Update totalStudents for each course when users change
   useEffect(() => {
@@ -1523,7 +1598,8 @@ const App = () => {
         appLogo, setAppLogo,
         language, setLanguage,
         activityLogs, logActivity,
-        certificateConfig, setCertificateConfig
+        certificateConfig, setCertificateConfig,
+        quizTimeConfig, setQuizTimeConfig
     }}>
         <Router>
              {!user ? (
